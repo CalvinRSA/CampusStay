@@ -1,4 +1,4 @@
-# app/routers/admin.py
+# app/routers/admin.py - FIXED DOCUMENT RETRIEVAL
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import List
 from sqlalchemy.orm import Session
@@ -7,47 +7,37 @@ from .auth import get_current_admin
 import boto3
 import os
 from uuid import uuid4
-from urllib.parse import urlparse
+from botocore.client import Config
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
-# ==================== B2 / S3 CONFIG ====================
-S3_ENDPOINT = os.getenv("B2_ENDPOINT")
-S3_REGION = os.getenv("B2_REGION")
-S3_ACCESS_KEY = os.getenv("B2_ACCESS_KEY_ID")
-S3_SECRET_KEY = os.getenv("B2_SECRET_ACCESS_KEY")
-S3_BUCKET = os.getenv("B2_BUCKET")
+# CLOUDFLARE R2
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
+R2_BUCKET = os.getenv("R2_BUCKET")
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL")
 
-if not all([S3_ENDPOINT, S3_REGION, S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET]):
-    raise RuntimeError("Missing B2/S3 environment variables in .env!")
+if not all([R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ACCOUNT_ID, R2_BUCKET, R2_PUBLIC_URL]):
+    raise RuntimeError("Missing R2 config")
+
+R2_ENDPOINT = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 s3_client = boto3.client(
     "s3",
-    endpoint_url=f"https://{S3_ENDPOINT}",
-    aws_access_key_id=S3_ACCESS_KEY,
-    aws_secret_access_key=S3_SECRET_KEY,
-    region_name=S3_REGION,
+    endpoint_url=R2_ENDPOINT,
+    aws_access_key_id=R2_ACCESS_KEY_ID,
+    aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+    region_name="auto",
+    config=Config(signature_version='s3v4')
 )
 
-ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".pdf"}
+def get_public_url(key: str) -> str:
+    """Generate public URL for R2 object"""
+    return f"{R2_PUBLIC_URL}/{key}"
 
+ALLOWED_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
-# ==================== CORRECT KEY EXTRACTION FOR BACKBLAZE B2 ====================
-def extract_key_from_url(url: str) -> str:
-    """
-    Backblaze B2 URLs are: https://s3.region.idrivee2.com/bucket-name/path/to/file.jpg
-    This function correctly extracts: path/to/file.jpg
-    """
-    try:
-        path = urlparse(url).path.lstrip("/")
-        if path.startswith(f"{S3_BUCKET}/"):
-            return path[len(f"{S3_BUCKET}/"):]
-        return path
-    except:
-        return ""
-
-
-# ==================== CREATE PROPERTY - FIXED URL FORMAT ====================
 @router.post("/properties")
 async def create_property(
     title: str = Form(...),
@@ -58,214 +48,173 @@ async def create_property(
     campus_intake: str = Form(...),
     images: List[UploadFile] = File(...),
     db: Session = Depends(database.get_db),
-    current_admin: models.Admin = Depends(get_current_admin),
+    admin: models.Admin = Depends(get_current_admin),
 ):
     if not (1 <= len(images) <= 5):
-        raise HTTPException(status_code=400, detail="Please upload 1 to 5 images")
+        raise HTTPException(400, "1-5 images required")
 
-    for img in images:
-        if not img.content_type or not img.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail=f"{img.filename} is not a valid image")
-
-    db_property = models.Property(
-        title=title,
-        address=address,
-        is_bachelor=is_bachelor,
-        available_flats=available_flats,
-        total_flats=available_flats,
-        space_per_student=space_per_student,
-        campus_intake=campus_intake,
-        admin_id=current_admin.id,
+    prop = models.Property(
+        title=title, address=address, is_bachelor=is_bachelor,
+        available_flats=available_flats, total_flats=available_flats,
+        space_per_student=space_per_student, campus_intake=campus_intake,
+        admin_id=admin.id
     )
-    db.add(db_property)
+    db.add(prop)
     db.commit()
-    db.refresh(db_property)
+    db.refresh(prop)
 
     for img in images:
         ext = os.path.splitext(img.filename)[1].lower()
         if ext not in ALLOWED_EXT:
-            raise HTTPException(status_code=400, detail=f"File type {ext} not allowed")
+            raise HTTPException(400, "Invalid image type")
 
-        key = f"properties/{db_property.id}/{uuid4().hex}{ext}"
+        key = f"properties/{prop.id}/{uuid4().hex}{ext}"
+        
         s3_client.put_object(
-            Bucket=S3_BUCKET,
+            Bucket=R2_BUCKET,
             Key=key,
             Body=await img.read(),
-            ContentType=img.content_type or "application/octet-stream",
-            ACL="public-read",
+            ContentType=img.content_type or "image/jpeg",
+            ACL="public-read"
         )
-        # CORRECT B2 URL: endpoint/bucket/key
-        url = f"https://{S3_ENDPOINT}/{S3_BUCKET}/{key}"
-        db_image = models.PropertyImage(property_id=db_property.id, image_url=url)
-        db.add(db_image)
+
+        url = get_public_url(key)
+        db.add(models.PropertyImage(property_id=prop.id, image_url=url))
 
     db.commit()
-    return {"message": "Property created successfully", "property_id": db_property.id}
+    return {"message": "Property created successfully", "property_id": prop.id}
 
 
-# ==================== GET PROPERTIES ====================
-@router.get("/properties")
-def get_properties(
-    db: Session = Depends(database.get_db),
-    current_admin: models.Admin = Depends(get_current_admin),
-):
-    properties = db.query(models.Property).filter(models.Property.admin_id == current_admin.id).all()
-    result = []
-    for p in properties:
-        images = [img.image_url for img in p.images]
-        result.append({
-            "id": p.id,
-            "title": p.title,
-            "address": p.address,
-            "is_bachelor": p.is_bachelor,
-            "available_flats": p.available_flats,
-            "total_flats": p.total_flats,
-            "space_per_student": p.space_per_student,
-            "campus_intake": p.campus_intake,
-            "image_urls": images,
-        })
-    return result
-
-
-# ==================== UPDATE PROPERTY - FIXED URL + TYPO ====================
 @router.put("/properties/{property_id}")
 async def update_property(
     property_id: int,
-    title: str = Form(None),
-    address: str = Form(None),
+    title: str = Form(None), 
+    address: str = Form(None), 
     is_bachelor: bool = Form(None),
-    available_flats: int = Form(None),
+    available_flats: int = Form(None), 
     space_per_student: float = Form(None),
     campus_intake: str = Form(None),
     new_images: List[UploadFile] = File(default=[]),
     remove_images: List[str] = Form(default=[]),
     db: Session = Depends(database.get_db),
-    current_admin: models.Admin = Depends(get_current_admin),
+    admin: models.Admin = Depends(get_current_admin),
 ):
-    db_property = db.query(models.Property).filter(
-        models.Property.id == property_id,
-        models.Property.admin_id == current_admin.id
+    prop = db.query(models.Property).filter(
+        models.Property.id == property_id, 
+        models.Property.admin_id == admin.id
     ).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
 
-    if not db_property:
-        raise HTTPException(status_code=404, detail="Property not found")
-
-    if title is not None: db_property.title = title
-    if address is not None: db_property.address = address
-    if is_bachelor is not None: db_property.is_bachelor = is_bachelor
+    if title: prop.title = title
+    if address: prop.address = address
+    if is_bachelor is not None: prop.is_bachelor = is_bachelor
     if available_flats is not None:
-        db_property.available_flats = available_flats  # FIXED: was available_flats.available_flats
-        if db_property.total_flats == db_property.available_flats:
-            db_property.total_flats = available_flats
-    if space_per_student is not None: db_property.space_per_student = space_per_student
-    if campus_intake is not None: db_property.campus_intake = campus_intake
+        prop.available_flats = available_flats
+        if prop.total_flats == prop.available_flats:
+            prop.total_flats = available_flats
+    if space_per_student: prop.space_per_student = space_per_student
+    if campus_intake: prop.campus_intake = campus_intake
 
-    # Delete removed images
-    if remove_images:
-        for url in remove_images:
-            img_record = db.query(models.PropertyImage).filter(
-                models.PropertyImage.property_id == property_id,
-                models.PropertyImage.image_url == url
-            ).first()
-            if img_record:
-                key = extract_key_from_url(url)
-                try:
-                    s3_client.delete_object(Bucket=S3_BUCKET, Key=key)
-                except Exception:
-                    pass
-                db.delete(img_record)
+    for url in remove_images:
+        try:
+            key = url.replace(f"{R2_PUBLIC_URL}/", "")
+            s3_client.delete_object(Bucket=R2_BUCKET, Key=key)
+        except Exception as e:
+            print(f"Failed to delete image: {e}")
+        db.query(models.PropertyImage).filter(
+            models.PropertyImage.image_url == url
+        ).delete()
 
-    # Add new images
-    current_images = db.query(models.PropertyImage).filter(models.PropertyImage.property_id == property_id).count()
-    if new_images and (current_images - len(remove_images) + len(new_images) > 5):
-        raise HTTPException(status_code=400, detail="Maximum 5 images allowed")
+    current = db.query(models.PropertyImage).filter(
+        models.PropertyImage.property_id == property_id
+    ).count()
+    if current - len(remove_images) + len(new_images) > 5:
+        raise HTTPException(400, "Max 5 images allowed")
 
     for img in new_images:
-        if not img.content_type or not img.content_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail=f"{img.filename} is not a valid image")
         ext = os.path.splitext(img.filename)[1].lower()
         if ext not in ALLOWED_EXT:
-            raise HTTPException(status_code=400, detail=f"File type {ext} not allowed")
-
+            raise HTTPException(400, "Invalid image type")
+        
         key = f"properties/{property_id}/{uuid4().hex}{ext}"
         s3_client.put_object(
-            Bucket=S3_BUCKET,
-            Key=key,
+            Bucket=R2_BUCKET, 
+            Key=key, 
             Body=await img.read(),
-            ContentType=img.content_type or "application/octet-stream",
-            ACL="public-read",
+            ContentType=img.content_type or "image/jpeg",
+            ACL="public-read"
         )
-        # CORRECT B2 URL
-        url = f"https://{S3_ENDPOINT}/{S3_BUCKET}/{key}"
+        url = get_public_url(key)
         db.add(models.PropertyImage(property_id=property_id, image_url=url))
 
     db.commit()
     return {"message": "Property updated successfully"}
 
 
-# ==================== DELETE PROPERTY - SAFE & WORKING ====================
 @router.delete("/properties/{property_id}")
 def delete_property(
-    property_id: int,
-    db: Session = Depends(database.get_db),
-    current_admin: models.Admin = Depends(get_current_admin),
+    property_id: int, 
+    db: Session = Depends(database.get_db), 
+    admin: models.Admin = Depends(get_current_admin)
 ):
-    db_property = db.query(models.Property).filter(
-        models.Property.id == property_id,
-        models.Property.admin_id == current_admin.id
+    prop = db.query(models.Property).filter(
+        models.Property.id == property_id, 
+        models.Property.admin_id == admin.id
     ).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
 
-    if not db_property:
-        raise HTTPException(status_code=404, detail="Property not found")
-
-    # Delete all images from B2
-    for img in db_property.images:
-        key = extract_key_from_url(img.image_url)
+    for img in prop.images:
         try:
-            s3_client.delete_object(Bucket=S3_BUCKET, Key=key)
+            key = img.image_url.replace(f"{R2_PUBLIC_URL}/", "")
+            s3_client.delete_object(Bucket=R2_BUCKET, Key=key)
         except Exception as e:
-            print(f"Warning: Could not delete S3 object {key}: {e}")
+            print(f"Failed to delete image: {e}")
 
-    # Clean up relationships first
-    db.query(models.Application).filter(models.Application.property_id == property_id).delete()
-    db.query(models.PropertyImage).filter(models.PropertyImage.property_id == property_id).delete()
-
-    # Delete property
-    db.delete(db_property)
+    db.query(models.PropertyImage).filter(
+        models.PropertyImage.property_id == property_id
+    ).delete()
+    db.query(models.Application).filter(
+        models.Application.property_id == property_id
+    ).delete()
+    db.delete(prop)
     db.commit()
+    return {"message": "Property deleted successfully"}
 
-    return {"message": "Property and all images permanently deleted"}
 
-
-# ==================== VIEW STUDENT DOCUMENTS ====================
-@router.get("/applications/{app_id}/documents")
-def get_student_documents(
-    app_id: int,
-    db: Session = Depends(database.get_db),
-    current_admin: models.Admin = Depends(get_current_admin),
+@router.get("/properties")
+def get_properties(
+    db: Session = Depends(database.get_db), 
+    admin: models.Admin = Depends(get_current_admin)
 ):
-    app = db.query(models.Application).filter(models.Application.id == app_id).first()
-    if not app:
-        raise HTTPException(status_code=404, detail="Application not found")
+    props = db.query(models.Property).filter(
+        models.Property.admin_id == admin.id
+    ).all()
+    return [{
+        "id": p.id, 
+        "title": p.title, 
+        "address": p.address, 
+        "is_bachelor": p.is_bachelor,
+        "available_flats": p.available_flats, 
+        "total_flats": p.total_flats,
+        "space_per_student": p.space_per_student, 
+        "campus_intake": p.campus_intake,
+        "image_urls": [i.image_url for i in p.images]
+    } for p in props]
 
-    student = app.student
-    return {
-        "student_name": student.full_name,
-        "id_document_url": student.id_document_url or None,
-        "proof_of_registration_url": student.proof_of_registration_url or None,
-    }
 
-
-# ==================== APPLICATIONS & STATS (unchanged) ====================
 @router.get("/applications")
 def get_applications(
     db: Session = Depends(database.get_db),
     current_admin: models.Admin = Depends(get_current_admin),
 ):
+    """Get minimal application details for list view"""
     applications = (
         db.query(models.Application, models.Student, models.Property)
         .join(models.Student, models.Application.student_id == models.Student.id)
         .join(models.Property, models.Application.property_id == models.Property.id)
+        .filter(models.Property.admin_id == current_admin.id)
         .all()
     )
     result = []
@@ -274,13 +223,84 @@ def get_applications(
             "id": app.id,
             "student_name": student.full_name,
             "student_email": student.email,
-            "student_phone": student.phone_number,
             "property_id": prop.id,
             "property_title": prop.title,
             "status": app.status,
             "applied_at": app.applied_at.isoformat(),
+            "funding_approved": app.funding_approved,
         })
     return result
+
+
+@router.get("/applications/{app_id}")
+def get_application_details(
+    app_id: int,
+    db: Session = Depends(database.get_db),
+    current_admin: models.Admin = Depends(get_current_admin),
+):
+    """Get full application details including documents for viewing"""
+    result = (
+        db.query(models.Application, models.Student, models.Property)
+        .join(models.Student, models.Application.student_id == models.Student.id)
+        .join(models.Property, models.Application.property_id == models.Property.id)
+        .filter(
+            models.Application.id == app_id,
+            models.Property.admin_id == current_admin.id
+        )
+        .first()
+    )
+    
+    if not result:
+        raise HTTPException(404, "Application not found")
+    
+    app, student, prop = result
+    
+    return {
+        "id": app.id,
+        "student_name": student.full_name,
+        "student_email": student.email,
+        "student_phone": student.phone_number,
+        "student_number": student.student_number,
+        "property_id": prop.id,
+        "property_title": prop.title,
+        "property_address": prop.address,
+        "status": app.status,
+        "applied_at": app.applied_at.isoformat(),
+        "notes": app.notes,
+        "funding_approved": app.funding_approved,
+        "proof_of_registration": getattr(student, 'proof_of_registration_url', None),
+        "id_copy": getattr(student, 'id_document_url', None),
+    }
+
+
+@router.delete("/applications/{app_id}")
+def delete_application(
+    app_id: int,
+    db: Session = Depends(database.get_db),
+    admin: models.Admin = Depends(get_current_admin)
+):
+    """Delete a handled application (approved or rejected only)"""
+    result = (
+        db.query(models.Application, models.Property)
+        .join(models.Property, models.Application.property_id == models.Property.id)
+        .filter(
+            models.Application.id == app_id,
+            models.Property.admin_id == admin.id
+        )
+        .first()
+    )
+    
+    if not result:
+        raise HTTPException(404, "Application not found")
+    
+    app, prop = result
+    
+    if app.status == "pending":
+        raise HTTPException(400, "Cannot delete pending applications. Please approve or reject first.")
+    
+    db.delete(app)
+    db.commit()
+    return {"message": "Application deleted successfully"}
 
 
 @router.get("/stats")
@@ -288,11 +308,21 @@ def get_stats(
     db: Session = Depends(database.get_db),
     current_admin: models.Admin = Depends(get_current_admin),
 ):
-    properties = db.query(models.Property).filter(models.Property.admin_id == current_admin.id).all()
+    properties = db.query(models.Property).filter(
+        models.Property.admin_id == current_admin.id
+    ).all()
     total_properties = len(properties)
-    total_applications = db.query(models.Application).join(models.Property).filter(models.Property.admin_id == current_admin.id).count()
-    pending = db.query(models.Application).join(models.Property).filter(models.Property.admin_id == current_admin.id, models.Application.status == "pending").count()
-    approved = db.query(models.Application).join(models.Property).filter(models.Property.admin_id == current_admin.id, models.Application.status == "approved").count()
+    total_applications = db.query(models.Application).join(models.Property).filter(
+        models.Property.admin_id == current_admin.id
+    ).count()
+    pending = db.query(models.Application).join(models.Property).filter(
+        models.Property.admin_id == current_admin.id, 
+        models.Application.status == "pending"
+    ).count()
+    approved = db.query(models.Application).join(models.Property).filter(
+        models.Property.admin_id == current_admin.id, 
+        models.Application.status == "approved"
+    ).count()
 
     total_spaces = sum(p.total_flats for p in properties)
     occupied = sum(p.total_flats - p.available_flats for p in properties)
@@ -313,7 +343,9 @@ def approve_application(
     db: Session = Depends(database.get_db),
     admin: models.Admin = Depends(get_current_admin)
 ):
-    app = db.query(models.Application).filter(models.Application.id == app_id).first()
+    app = db.query(models.Application).filter(
+        models.Application.id == app_id
+    ).first()
     if not app:
         raise HTTPException(404, "Application not found")
     if app.status != "pending":
@@ -324,7 +356,7 @@ def approve_application(
     if prop.available_flats > 0:
         prop.available_flats -= 1
     db.commit()
-    return {"message": "Application approved"}
+    return {"message": "Application approved successfully"}
 
 
 @router.post("/applications/{app_id}/rejected")
@@ -333,9 +365,11 @@ def reject_application(
     db: Session = Depends(database.get_db),
     admin: models.Admin = Depends(get_current_admin)
 ):
-    app = db.query(models.Application).filter(models.Application.id == app_id).first()
+    app = db.query(models.Application).filter(
+        models.Application.id == app_id
+    ).first()
     if not app:
         raise HTTPException(404, "Application not found")
     app.status = "rejected"
     db.commit()
-    return {"message": "Application rejected"}
+    return {"message": "Application rejected successfully"}

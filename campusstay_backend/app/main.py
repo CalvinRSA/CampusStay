@@ -31,12 +31,11 @@ async def create_tables():
     print("Database tables ensured (startup complete)")
 
 # ── 6. Include routers (MUST be after app creation) ───────────
-from .routers import auth, admin, students, uploads, property, applications
+from .routers import auth, admin, students, property, applications
 
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(students.router)
-app.include_router(uploads.router)
 app.include_router(applications.router)
 app.include_router(property.router)
 
