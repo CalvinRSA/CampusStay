@@ -1,0 +1,1109 @@
+import React, { useState, useEffect } from 'react';
+import { fetcher } from '../utils/api';
+import { logout, getCurrentUser } from '../utils/auth';
+import {
+  Home, Search, Heart, MapPin, Building2, Users, LogOut, Filter, X,
+  ChevronLeft, ChevronRight, Send, User, Mail, Phone, FileText,
+  CheckCircle, Clock, XCircle, Menu, Edit, Save, Upload, File
+} from 'lucide-react';
+
+interface Property { id: number; title: string; address: string; is_bachelor: boolean;
+  available_flats: number; total_flats: number; space_per_student: number; image_urls: string[]; }
+interface Application { 
+  id: number; 
+  property_id: number; 
+  property_title: string; 
+  property_address: string;
+  status: 'pending' | 'approved' | 'rejected'; 
+  applied_at: string; 
+  notes?: string;
+  proof_of_registration?: string;
+  id_copy?: string;
+  funding_approved?: boolean;
+}
+interface StudentProfile { full_name: string; email: string; phone_number: string; student_number: string; campus: string; }
+
+export default function StudentsDashboard() {
+  const user = getCurrentUser();
+  const token = localStorage.getItem('access_token');
+
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
+  const [favorites, setFavorites] = useState<number[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [activeTab, setActiveTab] = useState<'browse' | 'favorites' | 'applications' | 'profile'>('browse');
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [applicationNotes, setApplicationNotes] = useState('');
+  const [editingApplication, setEditingApplication] = useState<Application | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+
+  const [filters, setFilters] = useState({
+    searchQuery: '',
+    propertyType: 'all' as 'all' | 'bachelor' | 'shared',
+    minSpace: '', maxSpace: '', availableOnly: true,
+  });
+
+  const [editAppForm, setEditAppForm] = useState({
+    por: null as File | null,
+    idCopy: null as File | null,
+    fundingApproved: false,
+  });
+
+  const [editProfileForm, setEditProfileForm] = useState({
+    phone_number: '',
+    student_number: '',
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  });
+
+  // Redirect if not student
+  useEffect(() => {
+    if (!token || !user || user.role !== 'student') {
+      window.location.href = '/';
+    }
+  }, [token, user]);
+
+  const loadData = async () => {
+    try {
+      const [props, apps, prof] = await Promise.all([
+        fetcher('/properties'),
+        fetcher('/applications/my-applications'),
+        fetcher('/auth/me'),
+      ]);
+      setProperties(props);
+      setFilteredProperties(props);
+      setApplications(apps);
+      setProfile(prof);
+      setEditProfileForm({
+        phone_number: prof.phone_number || '',
+        student_number: prof.student_number || '',
+        current_password: '',
+        new_password: '',
+        confirm_password: '',
+      });
+    } catch (err) { console.error(err); }
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  // Favorites from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('favorites');
+    if (saved) setFavorites(JSON.parse(saved));
+  }, []);
+
+  // Apply filters
+  useEffect(() => {
+    let list = [...properties];
+    if (filters.searchQuery) {
+      const q = filters.searchQuery.toLowerCase();
+      list = list.filter(p => p.title.toLowerCase().includes(q) || p.address.toLowerCase().includes(q));
+    }
+    if (filters.propertyType !== 'all') {
+      list = list.filter(p => filters.propertyType === 'bachelor' ? p.is_bachelor : !p.is_bachelor);
+    }
+    if (filters.minSpace) list = list.filter(p => p.space_per_student >= +filters.minSpace);
+    if (filters.maxSpace) list = list.filter(p => p.space_per_student <= +filters.maxSpace);
+    if (filters.availableOnly) list = list.filter(p => p.available_flats > 0);
+    setFilteredProperties(list);
+  }, [filters, properties]);
+
+  const toggleFavorite = (id: number) => {
+    const newFavs = favorites.includes(id)
+      ? favorites.filter(x => x !== id)
+      : [...favorites, id];
+    setFavorites(newFavs);
+    localStorage.setItem('favorites', JSON.stringify(newFavs));
+  };
+
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleApply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProperty) return;
+    setSubmitting(true);
+    try {
+      await fetcher('/applications/my-applications', {
+        method: 'POST',
+        body: JSON.stringify({ property_id: selectedProperty.id, notes: applicationNotes }),
+      });
+      alert('Application submitted!');
+      setShowApplyModal(false);
+      setSelectedProperty(null);
+      setApplicationNotes('');
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditApplication = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingApplication) return;
+    
+    const formData = new FormData();
+    if (editAppForm.por) formData.append('proof_of_registration', editAppForm.por);
+    if (editAppForm.idCopy) formData.append('id_copy', editAppForm.idCopy);
+    formData.append('funding_approved', String(editAppForm.fundingApproved));
+
+    setSubmitting(true);
+    try {
+      const response = await fetch(`http://localhost:8000/applications/my-applications/${editingApplication.id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      
+      if (response.ok) {
+        alert('Application updated successfully!');
+        setEditingApplication(null);
+        setEditAppForm({ por: null, idCopy: null, fundingApproved: false });
+        loadData();
+      } else {
+        const err = await response.json();
+        alert(err.detail || 'Failed to update application');
+      }
+    } catch (err) {
+      alert('Network error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editProfileForm.new_password && editProfileForm.new_password !== editProfileForm.confirm_password) {
+      alert('New passwords do not match!');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        phone_number: editProfileForm.phone_number,
+        student_number: editProfileForm.student_number,
+      };
+
+      if (editProfileForm.new_password) {
+        payload.current_password = editProfileForm.current_password;
+        payload.new_password = editProfileForm.new_password;
+      }
+
+      await fetcher('/auth/update-profile', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+      
+      alert('Profile updated successfully!');
+      setEditingProfile(false);
+      setEditProfileForm({ ...editProfileForm, current_password: '', new_password: '', confirm_password: '' });
+      loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to update profile');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const map: any = {
+      pending: { color: 'yellow', icon: <Clock className="w-4 h-4" /> },
+      approved: { color: 'green', icon: <CheckCircle className="w-4 h-4" /> },
+      rejected: { color: 'red', icon: <XCircle className="w-4 h-4" /> },
+    };
+    const s = map[status];
+    return (
+      <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium border-2 bg-${s.color}-100 text-${s.color}-800 border-${s.color}-200`}>
+        {s.icon} {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
+  };
+
+  function openPropertyDetails(property: Property) {
+    setSelectedProperty(property);
+    setCurrentImageIndex(0);
+    setShowApplyModal(false);
+  }
+
+  const openEditApplication = (app: Application) => {
+    setEditingApplication(app);
+    setEditAppForm({
+      por: null,
+      idCopy: null,
+      fundingApproved: app.funding_approved || false,
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
+      {/* Header */}
+      <header className="bg-white shadow-md border-b-4 border-orange-500 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
+                <Home className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-orange-600 to-red-700 bg-clip-text text-transparent">
+                  CampusStay
+                </h1>
+                <p className="text-xs text-gray-500">Student Portal</p>
+              </div>
+            </div>
+
+            {/* Desktop Menu */}
+            <div className="hidden md:flex items-center space-x-2">
+              <button
+                onClick={() => setActiveTab('browse')}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  activeTab === 'browse' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-orange-50'
+                }`}
+              >
+                <Search className="w-4 h-4 inline mr-2" />
+                Browse
+              </button>
+              <button
+                onClick={() => setActiveTab('favorites')}
+                className={`px-4 py-2 rounded-lg font-medium transition relative ${
+                  activeTab === 'favorites' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-orange-50'
+                }`}
+              >
+                <Heart className="w-4 h-4 inline mr-2" />
+                Favorites
+                {favorites.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {favorites.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('applications')}
+                className={`px-4 py-2 rounded-lg font-medium transition relative ${
+                  activeTab === 'applications' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-orange-50'
+                }`}
+              >
+                <FileText className="w-4 h-4 inline mr-2" />
+                Applications
+                {applications.filter(a => a.status === 'pending').length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {applications.filter(a => a.status === 'pending').length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('profile')}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  activeTab === 'profile' ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-orange-50'
+                }`}
+              >
+                <User className="w-4 h-4 inline mr-2" />
+                Profile
+              </button>
+              <button onClick={logout} className="flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg font-medium transition">
+                <LogOut className="w-4 h-4" /> Logout
+              </button>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setMobileMenu(!mobileMenu)}
+              className="md:hidden text-gray-700"
+            >
+              {mobileMenu ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+
+          {/* Mobile Menu */}
+          {mobileMenu && (
+            <div className="md:hidden mt-4 space-y-2">
+              {['browse', 'favorites', 'applications', 'profile'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => {
+                    setActiveTab(tab as any);
+                    setMobileMenu(false);
+                  }}
+                  className={`block w-full text-left px-4 py-2 rounded-lg font-medium transition capitalize ${
+                    activeTab === tab ? 'bg-orange-600 text-white' : 'text-gray-700 hover:bg-orange-50'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+              <button
+                onClick={logout}
+                className="block w-full text-left px-4 py-2 rounded-lg font-medium text-red-600 hover:bg-red-50"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* BROWSE TAB */}
+        {activeTab === 'browse' && (
+          <div>
+            {/* Search and Filter Bar */}
+            <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search by title or location..."
+                    value={filters.searchQuery}
+                    onChange={e => setFilters({ ...filters, searchQuery: e.target.value })}
+                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 outline-none"
+                  />
+                </div>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center justify-center space-x-2 bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition"
+                >
+                  <Filter className="w-5 h-5" />
+                  <span>Filters</span>
+                </button>
+              </div>
+
+              {/* Filter Panel */}
+              {showFilters && (
+                <div className="mt-6 pt-6 border-t-2 border-gray-100 grid md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Property Type</label>
+                    <select
+                      value={filters.propertyType}
+                      onChange={e => setFilters({ ...filters, propertyType: e.target.value as any })}
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 outline-none"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="bachelor">Bachelor</option>
+                      <option value="shared">Shared</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Min Space</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 10"
+                      value={filters.minSpace}
+                      onChange={e => setFilters({ ...filters, minSpace: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Max Space</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 50"
+                      value={filters.maxSpace}
+                      onChange={e => setFilters({ ...filters, maxSpace: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={filters.availableOnly}
+                        onChange={e => setFilters({ ...filters, availableOnly: e.target.checked })}
+                        className="w-5 h-5 text-orange-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Available Only</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Properties Grid */}
+            <div className="mb-4 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">
+                {filteredProperties.length} Properties Available
+              </h2>
+            </div>
+
+            {filteredProperties.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-md p-12 text-center">
+                <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-800 mb-2">No Properties Found</h3>
+                <p className="text-gray-600">Try adjusting your filters or search query</p>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredProperties.map(property => (
+                  <div
+                    key={property.id}
+                    className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition transform hover:-translate-y-2 cursor-pointer relative group"
+                  >
+                    {/* Favorite Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavorite(property.id);
+                      }}
+                      className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg hover:bg-white transition"
+                    >
+                      <Heart
+                        className={`w-6 h-6 ${
+                          favorites.includes(property.id)
+                            ? 'fill-red-500 text-red-500'
+                            : 'text-gray-600'
+                        }`}
+                      />
+                    </button>
+
+                    <div onClick={() => openPropertyDetails(property)}>
+                      {property.image_urls[0] ? (
+                        <div className="relative h-48 overflow-hidden">
+                          <img 
+                            src={`http://localhost:8000${property.image_urls[0]}`} 
+                            alt={property.title} 
+                            className="w-full h-48 object-cover"
+                          />
+                          {property.available_flats === 0 && (
+                            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                              <span className="text-white font-bold text-lg">FULLY BOOKED</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-gradient-to-br from-orange-400 to-orange-600 h-48 flex items-center justify-center">
+                          <Home className="w-16 h-16 text-white" />
+                        </div>
+                      )}
+
+                      <div className="p-5">
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-bold text-lg text-gray-800 flex-1">{property.title}</h3>
+                          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                            property.is_bachelor
+                              ? 'bg-purple-100 text-purple-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {property.is_bachelor ? 'Bachelor' : 'Shared'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center text-gray-600 text-sm mb-4">
+                          <MapPin className="w-4 h-4 mr-2 text-orange-500" />
+                          <span className="line-clamp-1">{property.address}</span>
+                        </div>
+
+                        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-3 mb-4">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-medium text-gray-700">Availability</span>
+                            <span className="text-sm font-bold text-orange-600">
+                              {property.available_flats} / {property.total_flats} units
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all ${
+                                property.available_flats > 0 ? 'bg-gradient-to-r from-green-400 to-green-600' : 'bg-gray-400'
+                              }`}
+                              style={{ width: `${(property.available_flats / property.total_flats) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center text-gray-600">
+                            <Users className="w-4 h-4 mr-2 text-orange-500" />
+                            <span>{property.space_per_student} per student</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* FAVORITES TAB */}
+        {activeTab === 'favorites' && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">My Favorite Properties</h2>
+            {favorites.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-md p-12 text-center">
+                <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-800 mb-2">No Favorites Yet</h3>
+                <p className="text-gray-600 mb-6">Start exploring and save properties you like!</p>
+                <button
+                  onClick={() => setActiveTab('browse')}
+                  className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition"
+                >
+                  Browse Properties
+                </button>
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {properties
+                  .filter(p => favorites.includes(p.id))
+                  .map(property => (
+                    <div
+                      key={property.id}
+                      className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-2xl transition cursor-pointer relative"
+                      onClick={() => openPropertyDetails(property)}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(property.id);
+                        }}
+                        className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm p-2 rounded-full shadow-lg"
+                      >
+                        <Heart className="w-6 h-6 fill-red-500 text-red-500" />
+                      </button>
+
+                      {property.image_urls[0] ? (
+                        <img 
+                          src={`http://localhost:8000${property.image_urls[0]}`} 
+                          alt={property.title} 
+                          className="w-full h-48 object-cover"
+                        />
+                      ) : (
+                        <div className="bg-gradient-to-br from-orange-400 to-orange-600 h-48 flex items-center justify-center">
+                          <Home className="w-16 h-16 text-white" />
+                        </div>
+                      )}
+
+                      <div className="p-5">
+                        <h3 className="font-bold text-lg text-gray-800 mb-2">{property.title}</h3>
+                        <div className="flex items-center text-gray-600 text-sm">
+                          <MapPin className="w-4 h-4 mr-2" />
+                          <span>{property.address}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* APPLICATIONS TAB */}
+        {activeTab === 'applications' && (
+          <div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-8">My Applications</h2>
+            {applications.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-xl p-16 text-center">
+                <FileText className="w-20 h-20 text-gray-300 mx-auto mb-6" />
+                <h3 className="text-2xl font-bold text-gray-800 mb-3">No Applications Yet</h3>
+                <p className="text-gray-600 mb-8">Start applying to properties and track them here!</p>
+                <button onClick={() => setActiveTab('browse')} className="bg-orange-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-orange-700 transition shadow-lg">
+                  Browse Properties
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {applications.map(app => (
+                  <div key={app.id} className="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition">
+                    <div className="flex flex-col md:flex-row justify-between items-start gap-6">
+                      <div className="flex-1">
+                        <h3 className="text-2xl font-bold text-gray-800 mb-2">{app.property_title || 'Unknown Property'}</h3>
+                        <p className="text-lg text-gray-600 flex items-center mb-4">
+                          <MapPin className="w-5 h-5 mr-2 text-orange-600" />
+                          {app.property_address || 'Address not available'}
+                        </p>
+                        {app.notes && (
+                          <div className="bg-gray-50 rounded-xl p-4 mt-4">
+                            <p className="text-sm text-gray-700 italic">"{app.notes}"</p>
+                          </div>
+                        )}
+                        {app.proof_of_registration && (
+                          <div className="mt-3">
+                            <a href={`http://localhost:8000${app.proof_of_registration}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                              <File className="w-4 h-4" /> View Proof of Registration
+                            </a>
+                          </div>
+                        )}
+                        {app.id_copy && (
+                          <div className="mt-2">
+                            <a href={`http://localhost:8000${app.id_copy}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                              <File className="w-4 h-4" /> View ID Copy
+                            </a>
+                          </div>
+                        )}
+                        {app.funding_approved !== undefined && (
+                          <div className="mt-2">
+                            <span className={`text-sm font-medium ${app.funding_approved ? 'text-green-600' : 'text-gray-600'}`}>
+                              Funding: {app.funding_approved ? '✓ Approved' : '✗ Not Approved'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right flex flex-col gap-3">
+                        {getStatusBadge(app.status)}
+                        <p className="text-sm text-gray-500 mt-2 flex items-center justify-end">
+                          <Clock className="w-4 h-4 mr-1" />
+                          Applied on {new Date(app.applied_at).toLocaleDateString('en-ZA', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </p>
+                        {app.status === 'pending' && (
+                          <button
+                            onClick={() => openEditApplication(app)}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2 text-sm"
+                          >
+                            <Edit className="w-4 h-4" /> Edit Application
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PROFILE TAB */}
+        {activeTab === 'profile' && profile && (
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-xl shadow-md p-8">
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center space-x-4">
+                  <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                    <User className="w-10 h-10 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">{profile.full_name}</h2>
+                    <p className="text-gray-600">TUT Student</p>
+                  </div>
+                </div>
+                {!editingProfile && (
+                  <button
+                    onClick={() => setEditingProfile(true)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2"
+                  >
+                    <Edit className="w-4 h-4" /> Edit Profile
+                  </button>
+                )}
+              </div>
+
+              {!editingProfile ? (
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4">
+                    <div className="flex items-center text-gray-700 mb-2">
+                      <Mail className="w-5 h-5 mr-3 text-orange-600" />
+                      <div>
+                        <p className="text-xs text-gray-500">Email</p>
+                        <p className="font-medium">{profile.email}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4">
+                    <div className="flex items-center text-gray-700 mb-2">
+                      <Phone className="w-5 h-5 mr-3 text-orange-600" />
+                      <div>
+                        <p className="text-xs text-gray-500">Phone</p>
+                        <p className="font-medium">{profile.phone_number}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4">
+                    <div className="flex items-center text-gray-700 mb-2">
+                      <FileText className="w-5 h-5 mr-3 text-orange-600" />
+                      <div>
+                        <p className="text-xs text-gray-500">Student Number</p>
+                        <p className="font-medium">{profile.student_number}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4">
+                    <div className="flex items-center text-gray-700 mb-2">
+                      <Building2 className="w-5 h-5 mr-3 text-orange-600" />
+                      <div>
+                        <p className="text-xs text-gray-500">Campus</p>
+                        <p className="font-medium">{profile.campus}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleUpdateProfile} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={editProfileForm.phone_number}
+                      onChange={e => setEditProfileForm({ ...editProfileForm, phone_number: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Student Number</label>
+                    <input
+                      type="text"
+                      value={editProfileForm.student_number}
+                      onChange={e => setEditProfileForm({ ...editProfileForm, student_number: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4">Change Password (Optional)</h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                        <input
+                          type="password"
+                          value={editProfileForm.current_password}
+                          onChange={e => setEditProfileForm({ ...editProfileForm, current_password: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="Leave blank to keep current password"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                        <input
+                          type="password"
+                          value={editProfileForm.new_password}
+                          onChange={e => setEditProfileForm({ ...editProfileForm, new_password: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="Enter new password"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                        <input
+                          type="password"
+                          value={editProfileForm.confirm_password}
+                          onChange={e => setEditProfileForm({ ...editProfileForm, confirm_password: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                          placeholder="Confirm new password"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <Save className="w-5 h-5" /> {submitting ? 'Saving...' : 'Save Changes'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingProfile(false);
+                        setEditProfileForm({
+                          phone_number: profile.phone_number || '',
+                          student_number: profile.student_number || '',
+                          current_password: '',
+                          new_password: '',
+                          confirm_password: '',
+                        });
+                      }}
+                      className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="mt-8 pt-8 border-t-2 border-gray-100">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Account Statistics</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <p className="text-3xl font-bold text-blue-600">{favorites.length}</p>
+                    <p className="text-sm text-gray-600 mt-1">Favorites</p>
+                  </div>
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <p className="text-3xl font-bold text-green-600">{applications.length}</p>
+                    <p className="text-sm text-gray-600 mt-1">Applications</p>
+                  </div>
+                  <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                    <p className="text-3xl font-bold text-yellow-600">
+                      {applications.filter(a => a.status === 'pending').length}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">Pending</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Property Modal */}
+      {selectedProperty && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[95vh] overflow-y-auto shadow-3xl">
+            <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center z-10">
+              <h3 className="text-3xl font-bold text-gray-800">{selectedProperty.title}</h3>
+              <button onClick={() => setSelectedProperty(null)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-8 h-8" />
+              </button>
+            </div>
+
+            <div className="p-8">
+              {selectedProperty.image_urls.length > 0 ? (
+                <div className="relative mb-8 rounded-2xl overflow-hidden shadow-2xl">
+                  <img
+                    src={`http://localhost:8000${selectedProperty.image_urls[currentImageIndex]}`}
+                    alt={selectedProperty.title}
+                    className="w-full h-96 object-cover"
+                  />
+                  {selectedProperty.image_urls.length > 1 && (
+                    <>
+                      <button onClick={() => setCurrentImageIndex(i => i === 0 ? selectedProperty.image_urls.length - 1 : i - 1)}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-3 rounded-full shadow-lg transition">
+                        <ChevronLeft className="w-8 h-8" />
+                      </button>
+                      <button onClick={() => setCurrentImageIndex(i => i === selectedProperty.image_urls.length - 1 ? 0 : i + 1)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white p-3 rounded-full shadow-lg transition">
+                        <ChevronRight className="w-8 h-8" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-gradient-to-br from-orange-400 to-red-600 h-96 rounded-2xl flex items-center justify-center mb-8">
+                  <Home className="w-32 h-32 text-white" />
+                </div>
+              )}
+
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className={`text-sm font-semibold px-4 py-2 rounded-full ${
+                      selectedProperty.is_bachelor
+                        ? 'bg-purple-100 text-purple-700'
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {selectedProperty.is_bachelor ? 'Bachelor Flat' : 'Shared Accommodation'}
+                    </span>
+                    <button
+                      onClick={() => toggleFavorite(selectedProperty.id)}
+                      className="p-2 rounded-full hover:bg-gray-100 transition"
+                    >
+                      <Heart
+                        className={`w-6 h-6 ${
+                          favorites.includes(selectedProperty.id)
+                            ? 'fill-red-500 text-red-500'
+                            : 'text-gray-600'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-start text-gray-600 mb-4">
+                    <MapPin className="w-5 h-5 mr-3 text-orange-600 mt-1 flex-shrink-0" />
+                    <p className="text-lg">{selectedProperty.address}</p>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-6">
+                  <h4 className="font-bold text-gray-800 mb-4">Availability</h4>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Available Units</p>
+                      <p className="text-2xl font-bold text-orange-600">{selectedProperty.available_flats}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Total Units</p>
+                      <p className="text-2xl font-bold text-gray-800">{selectedProperty.total_flats}</p>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div
+                      className={`h-3 rounded-full transition-all ${
+                        selectedProperty.available_flats > 0
+                          ? 'bg-gradient-to-r from-green-400 to-green-600'
+                          : 'bg-gray-400'
+                      }`}
+                      style={{
+                        width: `${(selectedProperty.available_flats / selectedProperty.total_flats) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 rounded-xl p-6">
+                  <h4 className="font-bold text-gray-800 mb-2">Space per Student</h4>
+                  <div className="flex items-center">
+                    <Users className="w-6 h-6 text-blue-600 mr-3" />
+                    <p className="text-2xl font-bold text-blue-600">{selectedProperty.space_per_student} per student</p>
+                  </div>
+                </div>
+
+                {applications.some(app => app.property_id === selectedProperty.id) ? (
+                  <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-6 text-center">
+                    <CheckCircle className="w-12 h-12 text-yellow-600 mx-auto mb-3" />
+                    <p className="text-lg font-bold text-yellow-800">You've Already Applied</p>
+                    <p className="text-sm text-yellow-700 mt-2">
+                      Check your applications tab for status updates
+                    </p>
+                  </div>
+                ) : selectedProperty.available_flats === 0 ? (
+                  <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 text-center">
+                    <XCircle className="w-12 h-12 text-red-600 mx-auto mb-3" />
+                    <p className="text-lg font-bold text-red-800">Fully Booked</p>
+                    <p className="text-sm text-red-700 mt-2">
+                      This property has no available units at the moment
+                    </p>
+                  </div>
+                ) : !showApplyModal ? (
+                  <button
+                    onClick={() => setShowApplyModal(true)}
+                    className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-4 rounded-lg font-bold text-lg hover:shadow-xl transition flex items-center justify-center space-x-3"
+                  >
+                    <Send className="w-6 h-6" />
+                    <span>Apply Now</span>
+                  </button>
+                ) : (
+                  <form onSubmit={handleApply} className="bg-gray-50 rounded-xl p-6">
+                    <h4 className="font-bold text-gray-800 mb-4">Application Form</h4>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Additional Notes (Optional)
+                      </label>
+                      <textarea
+                        value={applicationNotes}
+                        onChange={e => setApplicationNotes(e.target.value)}
+                        placeholder="Tell us why you're interested in this property..."
+                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 outline-none resize-none"
+                        rows={4}
+                      />
+                    </div>
+                    <div className="flex space-x-3">
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
+                      >
+                        {submitting ? 'Submitting...' : 'Submit Application'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowApplyModal(false)}
+                        className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-400 transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Application Modal */}
+      {editingApplication && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+              <h3 className="text-2xl font-bold text-gray-800">Edit Application</h3>
+              <button onClick={() => setEditingApplication(null)} className="text-gray-500 hover:text-gray-700">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditApplication} className="p-6 space-y-6">
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-bold text-gray-800 mb-2">{editingApplication.property_title}</h4>
+                <p className="text-sm text-gray-600">{editingApplication.property_address}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Upload className="inline w-4 h-4 mr-1" /> Proof of Registration (PDF)
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={e => setEditAppForm({ ...editAppForm, por: e.target.files?.[0] || null })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+                {editingApplication.proof_of_registration && (
+                  <p className="text-sm text-green-600 mt-2 flex items-center gap-1">
+                    <CheckCircle className="w-4 h-4" /> Current file uploaded
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Upload className="inline w-4 h-4 mr-1" /> ID Copy (PDF)
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={e => setEditAppForm({ ...editAppForm, idCopy: e.target.files?.[0] || null })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+                {editingApplication.id_copy && (
+                  <p className="text-sm text-green-600 mt-2 flex items-center gap-1">
+                    <CheckCircle className="w-4 h-4" /> Current file uploaded
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 bg-gray-50 rounded-lg p-4">
+                <input
+                  type="checkbox"
+                  id="funding_approved"
+                  checked={editAppForm.fundingApproved}
+                  onChange={e => setEditAppForm({ ...editAppForm, fundingApproved: e.target.checked })}
+                  className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
+                />
+                <label htmlFor="funding_approved" className="text-sm font-medium text-gray-700">
+                  I have been approved for funding
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Save className="w-5 h-5" /> {submitting ? 'Updating...' : 'Update Application'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingApplication(null)}
+                  className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
