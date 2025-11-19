@@ -1,8 +1,14 @@
+# === CORE (your original stable versions) ===
 fastapi==0.109.2
 uvicorn[standard]==0.23.2
 SQLAlchemy==2.0.22
-psycopg2-binary>=2.9.9
+psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
-alembic>=1.13.1
+alembic==1.13.1
+
+# === MISSING BUT REQUIRED BY YOUR CODE ===
+python-multipart==0.0.9        # for UploadFile in admin property creation
+email-validator==2.2.0         # for EmailStr in Pydantic schemas
+pydantic==2.5.3                # safe version that works with FastAPI 0.109
