@@ -11,6 +11,7 @@ import {
 import LandingPage from './components/LandingPage';
 import AdminDashboard from './components/AdminDashboard';
 import StudentsDashboard from './components/StudentsDashboard';
+import VerifyEmail from './pages/VerifyEmail';
 
 // Type for user
 interface User {
@@ -133,18 +134,8 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Home & Login → Landing Page */}
-        <Route
-          path="/"
-          element={
-            user && token ? (
-              <Navigate to={getDefaultRedirect()} replace />
-            ) : (
-              <LandingPage />
-            )
-          }
-        />
-
+        
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/login" element={<LandingPage />} />
 
         {/* Protected Dashboards */}
@@ -154,6 +145,18 @@ const App: React.FC = () => {
             <ProtectedRoute role="student">
               <StudentsDashboard />
             </ProtectedRoute>
+          }
+        />
+
+        {/* Home & Login → Landing Page */}
+        <Route
+          path="/"
+          element={
+            user && token ? (
+              <Navigate to={getDefaultRedirect()} replace />
+            ) : (
+              <LandingPage />
+            )
           }
         />
 

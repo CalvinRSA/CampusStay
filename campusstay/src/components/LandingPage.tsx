@@ -7,6 +7,7 @@ export default function LandingPage() {
   const [showSignup, setShowSignup] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [signupRole, setSignupRole] = useState<'student' | 'admin' | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Login
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -17,48 +18,70 @@ export default function LandingPage() {
   const [studentData, setStudentData] = useState({
     full_name: '', email: '', phone_number: '', student_number: '', campus: '', password: '',
   });
+  const [signupLoading, setSignupLoading] = useState(false);
 
   const campuses = ['Soshanguve North','Soshanguve South','Garankuwa Campus','Arts Campus','Arcadia Campus','Pretoria Campus'];
 
-const handleLogin = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoginError(null);
-  setLoginLoading(true);
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
-  try {
-    await login({ email: loginData.email, password: loginData.password });
-    // Success! App.tsx will auto-redirect in <1 second
-  } catch (err: any) {
-    setLoginError(err.message || "Incorrect email or password");
-  } finally {
-    setLoginLoading(false);
-  }
-};
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    setLoginLoading(true);
 
-const handleStudentSignup = async (e: React.FormEvent) => {
-  e.preventDefault();
+    try {
+      await login({ email: loginData.email, password: loginData.password });
+      showNotification('Login successful!', 'success');
+      setShowLogin(false);
+      // Success! App.tsx will auto-redirect in <1 second
+    } catch (err: any) {
+      setLoginError(err.message || "Incorrect email or password");
+      showNotification(err.message || "Incorrect email or password", 'error');
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
-  if (!/^\d{9}$/.test(studentData.student_number)) {
-    alert("Student number must be exactly 9 digits");
-    return;
-  }
+  const handleStudentSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  try {
-    await registerStudent(studentData);
-    alert("Registered successfully! You can now log in.");
-    setShowSignup(false);
-    setSignupRole(null);
-    setStudentData({
-      full_name: '', email: '', phone_number: '',
-      student_number: '', campus: '', password: ''
-    });
-  } catch (err: any) {
-    alert(err.message || "Registration failed");
-  }
-};
+    if (!/^\d{9}$/.test(studentData.student_number)) {
+      showNotification("Student number must be exactly 9 digits", 'error');
+      return;
+    }
+
+    setSignupLoading(true);
+
+    try {
+      await registerStudent(studentData);
+      showNotification("Registered successfully! You can now log in.", 'success');
+      setShowSignup(false);
+      setSignupRole(null);
+      setStudentData({
+        full_name: '', email: '', phone_number: '',
+        student_number: '', campus: '', password: ''
+      });
+    } catch (err: any) {
+      showNotification(err.message || "Registration failed", 'error');
+    } finally {
+      setSignupLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Notification Toast */}
+      {notification && (
+        <div className={`fixed top-4 right-4 z-[60] px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 ${
+          notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+        } text-white font-medium`}>
+          {notification.message}
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-sm shadow-sm z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -123,7 +146,7 @@ const handleStudentSignup = async (e: React.FormEvent) => {
                 </span>
               </h1>
               <p className="text-xl text-gray-600">
-                Discover verified, affordable accommodation near Tshwane University of Technology. Safe, convenient, and designed for students.
+                Discover verified, NSFAS Accredited accommodation For Tshwane University of Technology Campuses Around Pretoria. Safe, convenient, and designed for students.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
@@ -259,93 +282,105 @@ const handleStudentSignup = async (e: React.FormEvent) => {
       </footer>
 
       {/* Login Modal */}
-      {/* ==================== LOGIN MODAL ==================== */}
-{showLogin && (
-  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl max-w-md w-full p-8 relative">
-      <button
-        onClick={() => setShowLogin(false)}
-        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-      >
-        <X className="w-6 h-6" />
-      </button>
+      {showLogin && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 relative">
+            <button
+              onClick={() => setShowLogin(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-6 h-6" />
+            </button>
 
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
-        <p className="text-gray-600">Log in to your CampusStay account</p>
-      </div>
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome Back</h2>
+              <p className="text-gray-600">Log in to your CampusStay account</p>
+            </div>
 
-      <form onSubmit={handleLogin} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Official TUT Email
-          </label>
-          <input
-            type="email"
-            value={loginData.email}
-            onChange={(e) =>
-              setLoginData({ ...loginData, email: e.target.value })
-            }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-            placeholder="your.email@tut.ac.za"
-            required
-          />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Official TUT Email
+                </label>
+                <input
+                  type="email"
+                  value={loginData.email}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, email: e.target.value })
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                  placeholder="your.email@tut.ac.za"
+                  required
+                  disabled={loginLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={loginData.password}
+                  onChange={(e) =>
+                    setLoginData({ ...loginData, password: e.target.value })
+                  }
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                  placeholder="Enter your password"
+                  required
+                  disabled={loginLoading}
+                />
+              </div>
+
+              {loginError && (
+                <p className="text-red-600 text-sm text-center">{loginError}</p>
+              )}
+
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center">
+                  <input type="checkbox" className="mr-2" disabled={loginLoading} />
+                  <span className="text-gray-600">Remember me</span>
+                </label>
+                <a href="#" className="text-orange-600 hover:text-orange-700">
+                  Forgot password?
+                </a>
+              </div>
+
+              <button
+                onClick={handleLogin}
+                disabled={loginLoading}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {loginLoading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Logging in...
+                  </>
+                ) : (
+                  'Log In'
+                )}
+              </button>
+            </div>
+
+            <p className="text-center text-gray-600 mt-6">
+              Don't have an account?{' '}
+              <button
+                onClick={() => {
+                  setShowLogin(false);
+                  setShowSignup(true);
+                }}
+                className="text-orange-600 hover:text-orange-700 font-semibold"
+                disabled={loginLoading}
+              >
+                Sign up
+              </button>
+            </p>
+          </div>
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Password
-          </label>
-          <input
-            type="password"
-            value={loginData.password}
-            onChange={(e) =>
-              setLoginData({ ...loginData, password: e.target.value })
-            }
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-            placeholder="Enter your password"
-            required
-          />
-        </div>
-
-        {loginError && (
-          <p className="text-red-600 text-sm text-center">{loginError}</p>
-        )}
-
-        <div className="flex items-center justify-between text-sm">
-          <label className="flex items-center">
-            <input type="checkbox" className="mr-2" />
-            <span className="text-gray-600">Remember me</span>
-          </label>
-          <a href="#" className="text-orange-600 hover:text-orange-700">
-            Forgot password?
-          </a>
-        </div>
-
-        <button
-          type="submit"
-          disabled={loginLoading}
-          className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-70"
-        >
-          {loginLoading ? 'Logging in...' : 'Log In'}
-        </button>
-      </form>
-
-      <p className="text-center text-gray-600 mt-6">
-        Don't have an account?{' '}
-        <button
-          onClick={() => {
-            setShowLogin(false);
-            setShowSignup(true);
-          }}
-          className="text-orange-600 hover:text-orange-700 font-semibold"
-        >
-          Sign up
-        </button>
-      </p>
-    </div>
-  </div>
-)}
+      )}
 
       {/* Signup Modal - Role-Based */}
       {showSignup && (
@@ -357,6 +392,7 @@ const handleStudentSignup = async (e: React.FormEvent) => {
                 setSignupRole(null);
               }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              disabled={signupLoading}
             >
               <X className="w-6 h-6" />
             </button>
@@ -389,7 +425,7 @@ const handleStudentSignup = async (e: React.FormEvent) => {
               </div>
             ) : signupRole === 'student' ? (
               /* Student Signup Form */
-              <form onSubmit={handleStudentSignup} className="space-y-4">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
                   <input
@@ -399,6 +435,7 @@ const handleStudentSignup = async (e: React.FormEvent) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                     placeholder="John Doe"
                     required
+                    disabled={signupLoading}
                   />
                 </div>
 
@@ -411,6 +448,7 @@ const handleStudentSignup = async (e: React.FormEvent) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                     placeholder="your.email@tut.ac.za"
                     required
+                    disabled={signupLoading}
                   />
                 </div>
 
@@ -427,6 +465,7 @@ const handleStudentSignup = async (e: React.FormEvent) => {
                     placeholder="123456789"
                     maxLength={9}
                     required
+                    disabled={signupLoading}
                   />
                   {studentData.student_number && studentData.student_number.length !== 9 && (
                     <p className="text-red-500 text-xs mt-1">Must be exactly 9 digits</p>
@@ -440,6 +479,7 @@ const handleStudentSignup = async (e: React.FormEvent) => {
                     onChange={(e) => setStudentData({ ...studentData, campus: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                     required
+                    disabled={signupLoading}
                   >
                     <option value="">Select your campus</option>
                     {campuses.map((campus) => (
@@ -459,6 +499,7 @@ const handleStudentSignup = async (e: React.FormEvent) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                     placeholder="+27 12 345 6789"
                     required
+                    disabled={signupLoading}
                   />
                 </div>
 
@@ -471,29 +512,42 @@ const handleStudentSignup = async (e: React.FormEvent) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
                     placeholder="Create a strong password"
                     required
+                    disabled={signupLoading}
                   />
                 </div>
 
                 <div className="flex items-start">
-                  <input type="checkbox" className="mt-1 mr-2" required />
+                  <input type="checkbox" className="mt-1 mr-2" required disabled={signupLoading} />
                   <span className="text-sm text-gray-600">I agree to the Terms of Service and Privacy Policy</span>
                 </div>
 
                 <button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition"
+                  onClick={handleStudentSignup}
+                  disabled={signupLoading}
+                  className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
-                  Create Student Account
+                  {signupLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Creating Account...
+                    </>
+                  ) : (
+                    'Create Student Account'
+                  )}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setSignupRole(null)}
                   className="w-full text-sm text-gray-600 hover:text-gray-800"
+                  disabled={signupLoading}
                 >
                   Back
                 </button>
-              </form>
+              </div>
             ) : (
               /* Admin Signup (Invite Only) */
               <div className="text-center py-8">

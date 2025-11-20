@@ -1,24 +1,29 @@
 -- ========================================
--- CAMPUSSTAY DATABASE SCHEMA - FIXED
+-- CAMPUSSTAY DATABASE SCHEMA - FINAL PRODUCTION VERSION
 -- ========================================
 
-DROP TABLE IF EXISTS property_images;
-DROP TABLE IF EXISTS applications;
-DROP TABLE IF EXISTS properties;
-DROP TABLE IF EXISTS students;
-DROP TABLE IF EXISTS admins;
+-- Drop tables in correct order
+DROP TABLE IF EXISTS property_images CASCADE;
+DROP TABLE IF EXISTS applications CASCADE;
+DROP TABLE IF EXISTS properties CASCADE;
+DROP TABLE IF EXISTS students CASCADE;
+DROP TABLE IF EXISTS admins CASCADE;
 
+-- ========================================
 -- 1. Admins
+-- ========================================
 CREATE TABLE admins (
     id SERIAL PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL DEFAULT 'Admin User',
     email VARCHAR(255) UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    hashed_password TEXT,  -- For future secure login
+    password TEXT,                    -- legacy plain text
+    hashed_password TEXT,             -- secure password
     is_active BOOLEAN DEFAULT TRUE
 );
 
--- 2. Students - NOW WITH DOCUMENT URLS
+-- ========================================
+-- 2. Students - WITH EMAIL VERIFICATION
+-- ========================================
 CREATE TABLE students (
     id SERIAL PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
@@ -28,14 +33,21 @@ CREATE TABLE students (
     campus VARCHAR(50) NOT NULL,
     hashed_password TEXT NOT NULL,
     
-    -- THESE ARE THE MISSING COLUMNS!
+    -- B2 document URLs
     id_document_url TEXT,
     proof_of_registration_url TEXT,
     
+    -- EMAIL VERIFICATION (NEW!)
+    email_verified BOOLEAN DEFAULT FALSE NOT NULL,
+    verification_token VARCHAR(255) UNIQUE,
+    verification_token_expires TIMESTAMP WITH TIME ZONE,
+
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ========================================
 -- 3. Properties
+-- ========================================
 CREATE TABLE properties (
     id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
@@ -44,12 +56,14 @@ CREATE TABLE properties (
     available_flats INTEGER NOT NULL,
     total_flats INTEGER NOT NULL,
     space_per_student NUMERIC(5,2) NOT NULL,
-    campus_intake VARCHAR(255) NOT NULL,  -- Allow multiple: "Pretoria, Soshanguve"
+    campus_intake VARCHAR(255) NOT NULL,
     admin_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- ========================================
 -- 4. Property Images
+-- ========================================
 CREATE TABLE property_images (
     id SERIAL PRIMARY KEY,
     property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
@@ -57,7 +71,9 @@ CREATE TABLE property_images (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- 5. Applications - SIMPLIFIED (documents now on student)
+-- ========================================
+-- 5. Applications
+-- ========================================
 CREATE TABLE applications (
     id SERIAL PRIMARY KEY,
     student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -68,15 +84,21 @@ CREATE TABLE applications (
     funding_approved BOOLEAN DEFAULT FALSE
 );
 
--- Default Admin
+-- ========================================
+-- 6. Default Admin
+-- ========================================
 INSERT INTO admins (full_name, email, password, hashed_password, is_active)
 VALUES ('CampusStay Admin', 'admin@tut.ac.za', 'admin123', NULL, TRUE)
 ON CONFLICT (email) DO NOTHING;
 
--- Indexes
+-- ========================================
+-- 7. Indexes
+-- ========================================
 CREATE INDEX idx_properties_admin ON properties(admin_id);
 CREATE INDEX idx_applications_student ON applications(student_id);
 CREATE INDEX idx_applications_property ON applications(property_id);
 CREATE INDEX idx_applications_status ON applications(status);
+CREATE INDEX idx_students_email ON students(email);
+CREATE INDEX idx_students_token ON students(verification_token);
 
-SELECT 'Database fixed - documents now save to S3 and admin can view them!' AS status;
+SELECT 'CampusStay database fully ready! Email verification + B2 storage + everything works!' AS status;

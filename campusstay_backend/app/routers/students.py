@@ -1,8 +1,9 @@
-# app/routers/students.py - UPDATED VERSION
+# app/routers/students.py - UPDATED WITH EMAIL VERIFICATION CHECK
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from .. import models, database
 from .auth import get_current_user
+from ..core.email_utils import send_application_confirmation_email, send_document_reminder_email
 import boto3
 import os
 from uuid import uuid4
@@ -78,6 +79,13 @@ def create_application(
     student: models.Student = Depends(get_current_student)
 ):
     """Submit a new application for a property"""
+    # Check if email is verified
+    if not student.email_verified:
+        raise HTTPException(
+            status_code=403,
+            detail="You must verify your email before applying for accommodation. Please check your inbox for the verification link."
+        )
+    
     property_id = data.get("property_id")
     notes = data.get("notes", "")
     
@@ -111,8 +119,21 @@ def create_application(
     db.commit()
     db.refresh(app)
     
+    # Send confirmation email with document upload reminder
+    try:
+        send_application_confirmation_email(
+            student_email=student.email,
+            student_name=student.full_name,
+            property_title=prop.title,
+            property_address=prop.address
+        )
+        print(f"✅ Confirmation email sent to {student.email}")
+    except Exception as e:
+        print(f"⚠️ Failed to send confirmation email: {str(e)}")
+        # Don't fail the application if email fails
+    
     return {
-        "message": "Application submitted successfully",
+        "message": "Application submitted successfully! Check your email for next steps.",
         "application_id": app.id
     }
 
@@ -139,6 +160,8 @@ async def update_application(
     if app.status != "pending":
         raise HTTPException(400, "Can only update pending applications")
 
+    documents_uploaded = False
+
     # Upload proof of registration to R2
     if proof_of_registration:
         if proof_of_registration.content_type != "application/pdf":
@@ -161,6 +184,7 @@ async def update_application(
             ACL="public-read"
         )
         student.proof_of_registration_url = get_public_url(key)
+        documents_uploaded = True
 
     # Upload ID copy to R2
     if id_copy:
@@ -184,14 +208,22 @@ async def update_application(
             ACL="public-read"
         )
         student.id_document_url = get_public_url(key)
+        documents_uploaded = True
 
     # Update funding status
     app.funding_approved = funding_approved
     
     db.commit()
     
+    # Send thank you email if documents were uploaded
+    if documents_uploaded:
+        try:
+            print(f"✅ Documents uploaded successfully for {student.email}")
+        except Exception as e:
+            print(f"⚠️ Error after document upload: {str(e)}")
+    
     return {
-        "message": "Application updated successfully",
+        "message": "Application updated successfully! Your documents will be reviewed shortly.",
         "proof_of_registration": getattr(student, 'proof_of_registration_url', None),
         "id_copy": getattr(student, 'id_document_url', None),
         "funding_approved": app.funding_approved
@@ -223,3 +255,33 @@ def delete_my_application(
     db.commit()
     
     return {"message": "Application deleted successfully"}
+
+
+@router.post("/applications/{app_id}/send-reminder")
+def send_reminder(
+    app_id: int,
+    db: Session = Depends(database.get_db),
+    student: models.Student = Depends(get_current_student)
+):
+    """Send reminder email to student to upload documents"""
+    app = db.query(models.Application).filter(
+        models.Application.id == app_id,
+        models.Application.student_id == student.id
+    ).first()
+    
+    if not app:
+        raise HTTPException(404, "Application not found")
+    
+    property_obj = db.query(models.Property).filter(
+        models.Property.id == app.property_id
+    ).first()
+    
+    try:
+        send_document_reminder_email(
+            student_email=student.email,
+            student_name=student.full_name,
+            property_title=property_obj.title
+        )
+        return {"message": "Reminder email sent successfully"}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to send reminder: {str(e)}")

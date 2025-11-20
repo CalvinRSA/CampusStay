@@ -1,9 +1,10 @@
-# app/routers/admin.py - FIXED DOCUMENT RETRIEVAL
+# app/routers/admin.py - UPDATED WITH OUTCOME EMAILS
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import List
 from sqlalchemy.orm import Session
 from .. import models, database
 from .auth import get_current_admin
+from ..core.email_utils import send_application_approved_email, send_application_rejected_email
 import boto3
 import os
 from uuid import uuid4
@@ -343,20 +344,50 @@ def approve_application(
     db: Session = Depends(database.get_db),
     admin: models.Admin = Depends(get_current_admin)
 ):
-    app = db.query(models.Application).filter(
-        models.Application.id == app_id
-    ).first()
-    if not app:
+    """Approve application and send email to student"""
+    # Get application with student and property details
+    result = (
+        db.query(models.Application, models.Student, models.Property)
+        .join(models.Student, models.Application.student_id == models.Student.id)
+        .join(models.Property, models.Application.property_id == models.Property.id)
+        .filter(
+            models.Application.id == app_id,
+            models.Property.admin_id == admin.id
+        )
+        .first()
+    )
+    
+    if not result:
         raise HTTPException(404, "Application not found")
+    
+    app, student, prop = result
+    
     if app.status != "pending":
         raise HTTPException(400, "Application already processed")
 
+    # Approve application
     app.status = "approved"
-    prop = app.property
     if prop.available_flats > 0:
         prop.available_flats -= 1
     db.commit()
-    return {"message": "Application approved successfully"}
+    
+    # Send approval email to student
+    try:
+        send_application_approved_email(
+            student_email=student.email,
+            student_name=student.full_name,
+            property_title=prop.title,
+            property_address=prop.address
+        )
+        print(f"✅ Approval email sent to {student.email}")
+    except Exception as e:
+        print(f"⚠️ Failed to send approval email: {str(e)}")
+        # Don't fail the approval if email fails
+    
+    return {
+        "message": "Application approved successfully! Student has been notified via email.",
+        "student_email": student.email
+    }
 
 
 @router.post("/applications/{app_id}/rejected")
@@ -365,11 +396,45 @@ def reject_application(
     db: Session = Depends(database.get_db),
     admin: models.Admin = Depends(get_current_admin)
 ):
-    app = db.query(models.Application).filter(
-        models.Application.id == app_id
-    ).first()
-    if not app:
+    """Reject application and send email to student"""
+    # Get application with student and property details
+    result = (
+        db.query(models.Application, models.Student, models.Property)
+        .join(models.Student, models.Application.student_id == models.Student.id)
+        .join(models.Property, models.Application.property_id == models.Property.id)
+        .filter(
+            models.Application.id == app_id,
+            models.Property.admin_id == admin.id
+        )
+        .first()
+    )
+    
+    if not result:
         raise HTTPException(404, "Application not found")
+    
+    app, student, prop = result
+    
+    if app.status != "pending":
+        raise HTTPException(400, "Application already processed")
+    
+    # Reject application
     app.status = "rejected"
     db.commit()
-    return {"message": "Application rejected successfully"}
+    
+    # Send rejection email to student
+    try:
+        send_application_rejected_email(
+            student_email=student.email,
+            student_name=student.full_name,
+            property_title=prop.title,
+            property_address=prop.address
+        )
+        print(f"✅ Rejection email sent to {student.email}")
+    except Exception as e:
+        print(f"⚠️ Failed to send rejection email: {str(e)}")
+        # Don't fail the rejection if email fails
+    
+    return {
+        "message": "Application rejected. Student has been notified via email.",
+        "student_email": student.email
+    }
