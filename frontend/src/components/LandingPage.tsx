@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Home, Shield, Clock, MapPin, Users, ChevronRight, Menu, X } from 'lucide-react';
 import { login, registerStudent } from '../utils/auth';
 

@@ -1,5 +1,5 @@
 // src/pages/VerifyEmail.tsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, Home } from 'lucide-react';
 import { fetcher } from '../utils/api';

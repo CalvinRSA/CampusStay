@@ -1,4 +1,4 @@
-import React, { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import {
   Home,
   Search,
