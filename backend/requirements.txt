@@ -1,27 +1,29 @@
-# === CORE FRAMEWORK (latest stable) ===
-fastapi==0.109.2
-uvicorn[standard]==0.30.6
+# Core
+fastapi==0.115.4
+uvicorn[standard]==0.32.0
+gunicorn==23.0.0                  # Render strongly recommends this for production
 
-# === DATABASE (CRITICAL FIXES FOR PYTHON 3.13 + RENDER) ===
-SQLAlchemy==2.0.22               # 2.0.36+ crashes on Render with Python 3.13
-psycopg[binary]==3.2.3            # NEW OFFICIAL DRIVER — replaces psycopg2-binary
+# Database
+SQLAlchemy==2.0.36
+alembic==1.13.3
+psycopg[binary]==3.2.3            # psycopg3 with binary (no psycopg2 conflicts, works great on Render)
+greenlet==3.1.1
 
-# === AUTH & SECURITY ===
+# Auth / security
 passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
-python-multipart==0.0.9           # Required for file uploads
-psycopg2-binary==2.9.9
+python-multipart==0.0.12
 
-# === DATA & VALIDATION (Pydantic v2 stable) ===
-pydantic==2.5.3
-pydantic_core==2.14.6
+# Pydantic – versions with cp313 wheels already published
+pydantic==2.9.2
 pydantic-core==2.23.4
-email_validator==2.2.0
 
-# === CLOUD STORAGE (Cloudflare R2 / Backblaze B2) ===
-boto3==1.41.1
-botocore==1.41.1
-
-# === MIGRATIONS & UTILITIES ===
-alembic==1.13.2
+# Other utilities from your original list
 python-dotenv==1.0.1
+boto3==1.35.24
+PyYAML==6.0.2
+email-validator==2.2.0
+
+# Optional but useful on Render
+watchfiles==0.24.0
+httptools==0.6.4
