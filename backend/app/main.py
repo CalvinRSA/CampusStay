@@ -18,7 +18,10 @@ app = FastAPI(title="CampusStay API")
 # ── 4. CORS ───────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://campusstay-1.onrender.com"],  # Vite dev server and FastAPI docs
+    allow_origins=[
+        "https://campusstay-1.onrender.com",   # ← your frontend URL
+        "http://localhost:5173",               # ← for local testing
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
