@@ -10,5 +10,6 @@ alembic==1.13.1
 
 # === MISSING BUT REQUIRED BY YOUR CODE ===
 python-multipart==0.0.9        # for UploadFile in admin property creation
-email-validator==2.2.0         # for EmailStr in Pydantic schemas
-pydantic==2.5.3                # safe version that works with FastAPI 0.109
+email-validator==2.2.0         # for EmailStr in Pydantic schemas              # safe version that works with FastAPI 0.109
+pydantic==2.9.2
+pydantic-core==2.23.4
