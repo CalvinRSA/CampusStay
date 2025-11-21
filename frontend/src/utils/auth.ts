@@ -37,9 +37,12 @@ export async function login(data: LoginData) {
   // Dispatch custom event to notify App.tsx immediately
   window.dispatchEvent(new Event('auth-change'));
 
-  // Redirect based on role
-  const redirectPath = res.role === 'admin' ? '/admin/dashboard' : '/student/dashboard';
-  window.location.href = redirectPath;
+  // Small delay to ensure state updates, then redirect
+  // Using window.location.replace to avoid back-button issues
+  setTimeout(() => {
+    const redirectPath = res.role === 'admin' ? '/admin/dashboard' : '/student/dashboard';
+    window.location.replace(redirectPath);
+  }, 100);
 
   return res;
 }
@@ -55,7 +58,7 @@ export function logout() {
   localStorage.removeItem('access_token');
   localStorage.removeItem('user');
   window.dispatchEvent(new Event('auth-change'));
-  window.location.href = '/';
+  window.location.replace('/');
 }
 
 export function getCurrentUser() {

@@ -1,6 +1,6 @@
 // src/App.tsx
-import type { JSX } from 'react'; // <-- FIXED the JSX import
-import React, { useEffect, useState } from 'react';
+import type { JSX } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -13,7 +13,6 @@ import AdminDashboard from './components/AdminDashboard';
 import StudentsDashboard from './components/StudentsDashboard';
 import VerifyEmail from './pages/VerifyEmail';
 
-// Type for user
 interface User {
   role: 'admin' | 'student';
 }
@@ -31,15 +30,13 @@ const App: React.FC = () => {
     ready: false,
   });
 
-  // Safely read and parse user from localStorage
-  const loadAuth = (): AuthState => {
+  const loadAuth = useCallback((): AuthState => {
     try {
       const userJson = localStorage.getItem('user');
       const token = localStorage.getItem('access_token');
 
       const user: User | null = userJson ? JSON.parse(userJson) : null;
 
-      // Clean inconsistent state
       if (user && !token) {
         localStorage.removeItem('user');
         return { user: null, token: null, ready: true };
@@ -56,51 +53,42 @@ const App: React.FC = () => {
       localStorage.removeItem('access_token');
       return { user: null, token: null, ready: true };
     }
-  };
+  }, []);
 
-  // Initialize and keep auth in sync
   useEffect(() => {
     // Initial load
     setAuth(loadAuth());
 
-    // Listen for changes from other tabs
-    const handleStorageChange = () => {
+    // Listen for auth changes (from login/logout)
+    const handleAuthChange = () => {
+      console.log('Auth change detected');
       setAuth(loadAuth());
     };
 
+    // Listen for storage changes from other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'access_token' || e.key === 'user') {
+        console.log('Storage change detected:', e.key);
+        setAuth(loadAuth());
+      }
+    };
+
+    window.addEventListener('auth-change', handleAuthChange);
     window.addEventListener('storage', handleStorageChange);
 
-    // Fallback polling in case storage event is missed
-    const interval = setInterval(() => {
-      setAuth((current) => {
-        const updated = loadAuth();
-        if (
-          current.user?.role !== updated.user?.role ||
-          current.token !== updated.token
-        ) {
-          return updated;
-        }
-        return current;
-      });
-    }, 1000);
-
     return () => {
+      window.removeEventListener('auth-change', handleAuthChange);
       window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
     };
-  }, []);
+  }, [loadAuth]);
 
-  // Show loader until auth is ready
   if (!auth.ready) {
     return (
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: 'system-ui, sans-serif'
-      }}>
-        Loading...
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -119,26 +107,22 @@ const App: React.FC = () => {
     }
 
     if (user.role !== role) {
-      return <Navigate to="/" replace />;
+      // Redirect to correct dashboard if wrong role
+      const correctPath = user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard';
+      return <Navigate to={correctPath} replace />;
     }
 
     return children;
   };
 
-  // Determine where to redirect logged-in users
-  const getDefaultRedirect = (): string => {
-    if (!user || !token) return '/';
-    return user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard';
-  };
-
   return (
     <BrowserRouter>
       <Routes>
-        
+        {/* Public Routes */}
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/login" element={<LandingPage />} />
 
-        {/* Protected Dashboards */}
+        {/* Protected Student Dashboard */}
         <Route
           path="/student/dashboard"
           element={
@@ -148,18 +132,7 @@ const App: React.FC = () => {
           }
         />
 
-        {/* Home & Login → Landing Page */}
-        <Route
-          path="/"
-          element={
-            user && token ? (
-              <Navigate to={getDefaultRedirect()} replace />
-            ) : (
-              <LandingPage />
-            )
-          }
-        />
-
+        {/* Protected Admin Dashboard */}
         <Route
           path="/admin/dashboard"
           element={
@@ -169,7 +142,22 @@ const App: React.FC = () => {
           }
         />
 
-        {/* Catch-all */}
+        {/* Home - Redirect if logged in, otherwise show landing */}
+        <Route
+          path="/"
+          element={
+            user && token ? (
+              <Navigate 
+                to={user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard'} 
+                replace 
+              />
+            ) : (
+              <LandingPage />
+            )
+          }
+        />
+
+        {/* Catch-all - Redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
