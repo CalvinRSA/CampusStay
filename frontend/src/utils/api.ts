@@ -1,5 +1,5 @@
 // src/utils/api.ts
-export const API_BASE = 'https://campusstay-h3qu.onrender.com';
+export const API_BASE = 'http://localhost:8000';
 
 export async function fetcher(endpoint: string, options: RequestInit = {}) {
   const token = localStorage.getItem('access_token');

@@ -22,6 +22,7 @@ export async function login(data: LoginData) {
     body: new URLSearchParams({ username: data.email, password: data.password }),
   });
 
+  // Store auth data
   localStorage.setItem('access_token', res.access_token);
   localStorage.setItem(
     'user',
@@ -32,6 +33,13 @@ export async function login(data: LoginData) {
       student_id: res.student_id || null,
     })
   );
+
+  // Dispatch custom event to notify App.tsx immediately
+  window.dispatchEvent(new Event('auth-change'));
+
+  // Redirect based on role
+  const redirectPath = res.role === 'admin' ? '/admin/dashboard' : '/student/dashboard';
+  window.location.href = redirectPath;
 
   return res;
 }
@@ -46,6 +54,7 @@ export async function registerStudent(data: StudentData) {
 export function logout() {
   localStorage.removeItem('access_token');
   localStorage.removeItem('user');
+  window.dispatchEvent(new Event('auth-change'));
   window.location.href = '/';
 }
 

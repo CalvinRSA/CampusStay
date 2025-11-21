@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 
 from .. import models, schemas, database
 from ..core.security import create_access_token, verify_password, hash_password
@@ -28,24 +28,24 @@ def test_auth():
     return {"message": "Auth router is working! Secure login active."}
 
 
-from datetime import datetime, timedelta, timezone
-from jose import jwt, JWTError
-
-# ==================== REGISTER STUDENT - FINAL WORKING VERSION ====================
+# ==================== REGISTER STUDENT ====================
 @router.post("/register", response_model=dict)
 def register_student(
     student_in: schemas.StudentCreate,
     db: Session = Depends(database.get_db),
 ):
+    # Check if email already exists
     if db.query(models.Student).filter(models.Student.email == student_in.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # Check if student number already exists
     if db.query(models.Student).filter(models.Student.student_number == student_in.student_number).first():
         raise HTTPException(status_code=400, detail="Student number already registered")
 
+    # Hash password
     hashed = hash_password(student_in.password)
 
-    # CREATE JWT VERIFICATION TOKEN (THIS IS THE CORRECT ONE!)
+    # CREATE JWT VERIFICATION TOKEN
     verification_token = jwt.encode(
         {
             "sub": student_in.email,
@@ -56,6 +56,7 @@ def register_student(
         algorithm=ALGORITHM
     )
 
+    # Create new student
     db_student = models.Student(
         full_name=student_in.full_name,
         email=student_in.email,
@@ -71,20 +72,24 @@ def register_student(
     db.commit()
     db.refresh(db_student)
 
-    # SEND EMAIL WITH CORRECT JWT TOKEN
+    # SEND VERIFICATION EMAIL VIA GMAIL SMTP
     try:
-        send_verification_email(
+        email_sent = send_verification_email(
             student_email=db_student.email,
             student_name=db_student.full_name,
             verification_token=verification_token
         )
-        print(f"Verification email sent to {db_student.email}")
+        if email_sent:
+            print(f"✅ Verification email sent to {db_student.email}")
+        else:
+            print(f"⚠️ Email not sent (check SMTP_USERNAME and SMTP_PASSWORD in .env)")
     except Exception as e:
-        print(f"Email failed (but registration succeeded): {e}")
+        print(f"❌ Email failed: {e}")
 
     return {"message": "Registered! Check your email to verify your account."}
 
-# ==================== 2. VERIFY EMAIL ENDPOINT - PERFECT ====================
+
+# ==================== VERIFY EMAIL ENDPOINT ====================
 @router.get("/verify-email")
 def verify_email(token: str, db: Session = Depends(database.get_db)):
     if not token:
@@ -124,10 +129,9 @@ def verify_email(token: str, db: Session = Depends(database.get_db)):
 
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid or corrupted token")
-    
 
 
-# ── UNIFIED LOGIN (Admin + Student) ─────────────
+# ==================== UNIFIED LOGIN (FIXED) ====================
 @router.post("/login", response_model=schemas.Token)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -136,69 +140,66 @@ def login(
     email = form_data.username
     password = form_data.password
 
-    # === TRY ADMIN LOGIN ===
+    # === TRY ADMIN LOGIN FIRST ===
     admin = db.query(models.Admin).filter(models.Admin.email == email).first()
     if admin:
-        # If hashed_password exists → use secure verification
-        if admin.hashed_password and verify_password(password, admin.hashed_password):
-            access_token = create_access_token(
-                data={"sub": admin.email, "role": "admin"},
-                expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        if not admin.hashed_password:
+            raise HTTPException(
+                status_code=500,
+                detail="Admin account not properly configured. Run /auth/fix-admin"
             )
-            return {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "role": "admin",
-                "email": admin.email,
-                "full_name": admin.full_name or "Admin"
-            }
         
-        # Fallback: if only plain password exists (old data)
-        elif admin.password and admin.password == password:
-            # Auto-upgrade to hashed on first login
-            admin.hashed_password = hash_password(password)
-            db.commit()
-            access_token = create_access_token(
-                data={"sub": admin.email, "role": "admin"},
-                expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-            )
-            return {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "role": "admin",
-                "email": admin.email,
-                "full_name": admin.full_name or "Admin"
-            }
+        if not verify_password(password, admin.hashed_password):
+            raise HTTPException(status_code=401, detail="Incorrect email or password")
+        
+        access_token = create_access_token(
+            data={"sub": admin.email, "role": "admin"},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": "admin",
+            "email": admin.email,
+            "full_name": admin.full_name or "Admin"
+        }
 
     # === TRY STUDENT LOGIN ===
     student = db.query(models.Student).filter(models.Student.email == email).first()
     if student:
-        # Check if email is verified
         if not student.email_verified:
             raise HTTPException(
                 status_code=403,
                 detail="Please verify your email before logging in. Check your inbox for the verification link."
             )
         
-        if student.hashed_password and verify_password(password, student.hashed_password):
-            access_token = create_access_token(
-                data={"sub": student.email, "role": "student", "student_id": student.id},
-                expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        if not student.hashed_password:
+            raise HTTPException(
+                status_code=500,
+                detail="Account not properly configured. Please contact support."
             )
-            return {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "role": "student",
-                "email": student.email,
-                "full_name": student.full_name,
-                "student_id": student.id,
-                "email_verified": student.email_verified
-            }
+        
+        if not verify_password(password, student.hashed_password):
+            raise HTTPException(status_code=401, detail="Incorrect email or password")
+        
+        access_token = create_access_token(
+            data={"sub": student.email, "role": "student", "student_id": student.id},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        )
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "role": "student",
+            "email": student.email,
+            "full_name": student.full_name,
+            "student_id": student.id,
+            "email_verified": student.email_verified
+        }
 
     raise HTTPException(status_code=401, detail="Incorrect email or password")
 
 
-# ── GET CURRENT USER (works for both admin & student) ─────
+# ── GET CURRENT USER ─────
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(database.get_db)
@@ -219,7 +220,7 @@ def get_current_user(
 
     if role == "admin":
         user = db.query(models.Admin).filter(models.Admin.email == email).first()
-    else:  # student or unknown
+    else:
         user = db.query(models.Student).filter(models.Student.email == email).first()
 
     if not user:
@@ -231,7 +232,7 @@ def get_current_user(
 # ── GET CURRENT PROFILE ─────
 @router.get("/me")
 def get_me(current_user = Depends(get_current_user)):
-    if hasattr(current_user, 'campus'):  # Student
+    if hasattr(current_user, 'campus'):
         return {
             "full_name": current_user.full_name,
             "email": current_user.email,
@@ -240,7 +241,7 @@ def get_me(current_user = Depends(get_current_user)):
             "campus": current_user.campus,
             "email_verified": current_user.email_verified,
         }
-    else:  # Admin
+    else:
         return {
             "full_name": current_user.full_name or "Admin",
             "email": current_user.email,
@@ -255,51 +256,30 @@ def update_profile(
     db: Session = Depends(database.get_db),
     current_user = Depends(get_current_user)
 ):
-    """Update user profile (phone, student number, password)"""
-    
-    # Only students can update their profile through this endpoint
     if not hasattr(current_user, 'campus'):
-        raise HTTPException(
-            status_code=403, 
-            detail="This endpoint is for students only"
-        )
+        raise HTTPException(status_code=403, detail="This endpoint is for students only")
     
     student = current_user
     
-    # Update phone number
     if "phone_number" in data and data["phone_number"]:
         student.phone_number = data["phone_number"]
     
-    # Update student number
     if "student_number" in data and data["student_number"]:
-        # Check if new student number is already taken by another student
         existing = db.query(models.Student).filter(
             models.Student.student_number == data["student_number"],
             models.Student.id != student.id
         ).first()
         if existing:
-            raise HTTPException(
-                status_code=400,
-                detail="Student number already in use by another account"
-            )
+            raise HTTPException(status_code=400, detail="Student number already in use by another account")
         student.student_number = data["student_number"]
     
-    # Update password if provided
     if data.get("new_password"):
-        # Verify current password
         if not data.get("current_password"):
-            raise HTTPException(
-                status_code=400,
-                detail="Current password is required to set a new password"
-            )
+            raise HTTPException(status_code=400, detail="Current password is required to set a new password")
         
         if not verify_password(data["current_password"], student.hashed_password):
-            raise HTTPException(
-                status_code=400,
-                detail="Current password is incorrect"
-            )
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
         
-        # Set new password
         student.hashed_password = hash_password(data["new_password"])
     
     db.commit()
@@ -315,7 +295,7 @@ def update_profile(
     }
 
 
-# TEMPORARY – DELETE AFTER FIRST ADMIN LOGIN
+# ==================== ADMIN SETUP ENDPOINTS ====================
 @router.post("/create-admin")
 def create_admin(
     email: str = "admin@tut.ac.za",
@@ -323,37 +303,34 @@ def create_admin(
     password: str = "admin123",
     db: Session = Depends(database.get_db)
 ):
-    if db.query(models.Admin).filter(models.Admin.email == email).first():
-        return {"message": "Admin already exists"}
+    existing = db.query(models.Admin).filter(models.Admin.email == email).first()
+    if existing:
+        return {"message": "Admin already exists. Use /fix-admin if you need to reset password."}
 
     hashed = hash_password(password)
-    admin = models.Admin(
-        email=email,
-        full_name=full_name,
-        hashed_password=hashed
-    )
+    admin = models.Admin(email=email, full_name=full_name, hashed_password=hashed)
     db.add(admin)
     db.commit()
-    return {"message": "Admin created! Login with admin@tut.ac.za / admin123"}
+    return {"message": f"✅ Admin created! Login with {email} / {password}"}
+
 
 @router.post("/fix-admin")
 def fix_admin(db: Session = Depends(database.get_db)):
-    from ..core.security import hash_password
-    
     admin = db.query(models.Admin).filter(models.Admin.email == "admin@tut.ac.za").first()
     if not admin:
         admin = models.Admin(email="admin@tut.ac.za", full_name="Super Admin")
         db.add(admin)
     
-    admin.hashed_password = hash_password("admin123")  # now works with login
+    admin.hashed_password = hash_password("admin123")
+    admin.password = None
     db.commit()
-    return {"message": "Admin fixed! Login with admin@tut.ac.za / admin123"}
+    
+    return {"message": "✅ Admin fixed! Login with admin@tut.ac.za / admin123"}
 
-# ── Optional: Keep old get_current_admin for backward compatibility ─────
+
+# ── Compatibility helpers ─────
 def get_current_admin(current_user=Depends(get_current_user)):
-    if current_user is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    if current_user.__class__.__name__ != "Admin":
+    if not hasattr(current_user, 'full_name') or hasattr(current_user, 'campus'):
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return current_user
 

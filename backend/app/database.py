@@ -4,34 +4,37 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
-# Create Base (must be before any models)
 Base = declarative_base()
 
-# Use DATABASE_URL from environment (Render/Railway/Netlify set this automatically)
-# Fallback to individual vars for local development
+# === Get DATABASE_URL from cloud (Render/Railway/Fly.io) ===
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    # Local development fallback
-    POSTGRES_USER = os.getenv("POSTGRES_USER", "admin")
-    POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "123456")
-    POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-    POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
-    POSTGRES_DB = os.getenv("POSTGRES_DB", "campusstay")
-    
-    DATABASE_URL = f"postgresql+psycopg://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-    
-    print(f"Local DB: {DATABASE_URL.replace(POSTGRES_PASSWORD, '***')}")
+if DATABASE_URL:
+    # Cloud: Render/Railway gives "postgresql://"
+    # Convert to psycopg driver + handle SSL correctly
+    if DATABASE_URL.startswith("postgresql://"):
+        DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
+    print("Connected to cloud PostgreSQL")
 else:
-    print("Connected to cloud database (DATABASE_URL found)")
+    # Local development fallback
+    user = os.getenv("POSTGRES_USER", "admin")
+    password = os.getenv("POSTGRES_PASSWORD", "123456")
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    db = os.getenv("POSTGRES_DB", "campusstay")
+    
+    DATABASE_URL = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db}?sslmode=disable"
+    print(f"Local DB: postgresql+psycopg://{user}:***@{host}:{port}/{db}")
 
-# Create engine
+# === Create engine with safe settings ===
 engine = create_engine(
     DATABASE_URL,
+    pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
     future=True,
-    connect_args={"sslmode": "require"},  # if needed
+    # These options make SSL work everywhere without errors
+    connect_args={"sslmode": "prefer"} if "render.com" in DATABASE_URL or "railway.app" in DATABASE_URL else {}
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

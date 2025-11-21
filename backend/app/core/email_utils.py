@@ -1,5 +1,6 @@
 # app/core/email_utils.py
 import os
+import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -10,26 +11,48 @@ SMTP_USERNAME = os.getenv("SMTP_USERNAME")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
 FROM_NAME = os.getenv("FROM_NAME", "CampusStay TUT")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://campusstay2-production.up.railway.app")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
-
-import resend
-
-resend.api_key = os.getenv("RESEND_API_KEY")
 
 def send_email(to_email: str, subject: str, html_body: str, text_body: str = None):
-    if not resend.api_key:
-        print("No Resend key - email skipped")
+    """Send email via Gmail SMTP"""
+    if not SMTP_USERNAME or not SMTP_PASSWORD:
+        print("❌ No Gmail credentials configured - email skipped")
+        print("   Set SMTP_USERNAME and SMTP_PASSWORD in .env")
         return False
-    resend.Emails.send({
-        "from": "CampusStay <noreply@campusstay.co.za>",
-        "to": [to_email],
-        "subject": subject,
-        "html": html_body,
-        "text": text_body or ""
-    })
-    print(f"Email sent via Resend to {to_email}")
-    return True
+    
+    try:
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f"{FROM_NAME} <{FROM_EMAIL}>"
+        msg['To'] = to_email
+        
+        # Attach both plain text and HTML versions
+        if text_body:
+            part1 = MIMEText(text_body, 'plain')
+            msg.attach(part1)
+        
+        part2 = MIMEText(html_body, 'html')
+        msg.attach(part2)
+        
+        # Connect to Gmail SMTP server
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()  # Secure the connection
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+        
+        print(f"✅ Email sent via Gmail to {to_email}")
+        return True
+        
+    except smtplib.SMTPAuthenticationError:
+        print("❌ Gmail authentication failed. Check your credentials.")
+        print("   Make sure you're using an App Password, not your regular Gmail password.")
+        return False
+    except Exception as e:
+        print(f"❌ Email send failed: {e}")
+        return False
+
 
 def send_verification_email(student_email: str, student_name: str, verification_token: str):
     """Send email verification link to new student"""
