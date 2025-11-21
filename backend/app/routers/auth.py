@@ -336,6 +336,18 @@ def create_admin(
     db.commit()
     return {"message": "Admin created! Login with admin@tut.ac.za / admin123"}
 
+@router.post("/fix-admin")
+def fix_admin(db: Session = Depends(database.get_db)):
+    from ..core.security import hash_password
+    
+    admin = db.query(models.Admin).filter(models.Admin.email == "admin@tut.ac.za").first()
+    if not admin:
+        admin = models.Admin(email="admin@tut.ac.za", full_name="Super Admin")
+        db.add(admin)
+    
+    admin.hashed_password = hash_password("admin123")  # now works with login
+    db.commit()
+    return {"message": "Admin fixed! Login with admin@tut.ac.za / admin123"}
 
 # ── Optional: Keep old get_current_admin for backward compatibility ─────
 def get_current_admin(current_user=Depends(get_current_user)):

@@ -1,6 +1,5 @@
 # app/core/email_utils.py
 import os
-import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -14,39 +13,23 @@ FROM_NAME = os.getenv("FROM_NAME", "CampusStay TUT")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://campusstay2-production.up.railway.app")
 
 
-def send_email(to_email: str, subject: str, html_body: str, text_body: str = None):
-    """Send an email using SMTP"""
-    if not SMTP_USERNAME or not SMTP_PASSWORD:
-        print("⚠️ SMTP credentials not configured. Email not sent.")
-        print(f"Would have sent to: {to_email}")
-        print(f"Subject: {subject}")
-        return False
-    
-    try:
-        message = MIMEMultipart("alternative")
-        message["Subject"] = subject
-        message["From"] = f"{FROM_NAME} <{FROM_EMAIL}>"
-        message["To"] = to_email
-        
-        if text_body:
-            part1 = MIMEText(text_body, "plain")
-            message.attach(part1)
-        
-        part2 = MIMEText(html_body, "html")
-        message.attach(part2)
-        
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(message)
-        
-        print(f"✅ Email sent successfully to {to_email}")
-        return True
-    
-    except Exception as e:
-        print(f"❌ Failed to send email to {to_email}: {str(e)}")
-        return False
+import resend
 
+resend.api_key = os.getenv("RESEND_API_KEY")
+
+def send_email(to_email: str, subject: str, html_body: str, text_body: str = None):
+    if not resend.api_key:
+        print("No Resend key - email skipped")
+        return False
+    resend.Emails.send({
+        "from": "CampusStay <noreply@campusstay.co.za>",
+        "to": [to_email],
+        "subject": subject,
+        "html": html_body,
+        "text": text_body or ""
+    })
+    print(f"Email sent via Resend to {to_email}")
+    return True
 
 def send_verification_email(student_email: str, student_name: str, verification_token: str):
     """Send email verification link to new student"""
