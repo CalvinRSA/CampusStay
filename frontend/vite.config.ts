@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8000',
+        target: 'https://campusstay-h3qu.onrender.com',
         changeOrigin: true,
         secure: false,
       },
