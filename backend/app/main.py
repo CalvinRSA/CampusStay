@@ -11,10 +11,7 @@ app = FastAPI(title="CampusStay API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://campusstay-1.onrender.com",   # ← your frontend URL
-        "http://localhost:5173",               # ← local dev
-        # Add your custom domain later:
-        # "https://www.campusstay.co.za",
+        "https://campusstay-1.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
