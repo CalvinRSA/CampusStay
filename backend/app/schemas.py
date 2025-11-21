@@ -21,6 +21,9 @@ class StudentCreate(BaseModel):
     campus: str
     password: str
 
+    class Config:
+        from_attributes = True
+
     @validator("student_number")
     def check_student_number(cls, v):
         if not v.isdigit() or len(v) != 9:
