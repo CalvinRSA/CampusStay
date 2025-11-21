@@ -317,24 +317,19 @@ def update_profile(
 
 # TEMPORARY – DELETE AFTER FIRST ADMIN LOGIN
 @router.post("/create-admin")
-def create_admin(
-    email: str = "admin@tut.ac.za",
-    full_name: str = "Super Admin",
-    password: str = "admin123",
-    db: Session = Depends(database.get_db)
-):
-    if db.query(models.Admin).filter(models.Admin.email == email).first():
+def create_admin(db: Session = Depends(database.get_db)):
+    from ..core.security import hash_password
+    if db.query(models.Admin).filter(models.Admin.email == "admin@tut.ac.za").first():
         return {"message": "Admin already exists"}
-
-    hashed = hash_password(password)
+    
     admin = models.Admin(
-        email=email,
-        full_name=full_name,
-        hashed_password=hashed
+        email="admin@tut.ac.za",
+        full_name="CampusStay Admin",
+        hashed_password=hash_password("admin123")
     )
     db.add(admin)
     db.commit()
-    return {"message": "Admin created! Login with admin@tut.ac.za / admin123"}
+    return {"message": "Admin created with password: admin123"}
 
 
 # ── Optional: Keep old get_current_admin for backward compatibility ─────
