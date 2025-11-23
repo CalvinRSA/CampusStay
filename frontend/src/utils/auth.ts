@@ -29,20 +29,16 @@ export async function login(data: LoginData) {
     JSON.stringify({
       email: res.email || data.email,
       full_name: res.full_name || data.email.split('@')[0],
-      role: res.role,
+      role: res.role,              // ← this is correct
       student_id: res.student_id || null,
     })
   );
 
-  // Dispatch custom event to notify App.tsx immediately
+  // Just dispatch the event → App.tsx will handle redirect automatically
   window.dispatchEvent(new Event('auth-change'));
 
-  // Small delay to ensure state updates, then redirect
-  // Using window.location.replace to avoid back-button issues
-  setTimeout(() => {
-    const redirectPath = res.role === 'admin' ? '/admin/dashboard' : '/student/dashboard';
-    window.location.replace(redirectPath);
-  }, 100);
+  // ←←← REMOVE THE SETTIMEOUT ENTIRELY ←←←
+  // No manual redirect needed!
 
   return res;
 }
