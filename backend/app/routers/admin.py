@@ -239,7 +239,7 @@ def get_application_details(
     db: Session = Depends(database.get_db),
     current_admin: models.Admin = Depends(get_current_admin),
 ):
-    """Get full application details including documents for viewing"""
+    """Get full application details including documents"""
     result = (
         db.query(models.Application, models.Student, models.Property)
         .join(models.Student, models.Application.student_id == models.Student.id)
@@ -269,10 +269,10 @@ def get_application_details(
         "applied_at": app.applied_at.isoformat(),
         "notes": app.notes,
         "funding_approved": app.funding_approved,
-        "proof_of_registration": getattr(student, 'proof_of_registration_url', None),
-        "id_copy": getattr(student, 'id_document_url', None),
+        # Documents from STUDENT table
+        "proof_of_registration": student.proof_of_registration_url,
+        "id_copy": student.id_document_url,
     }
-
 
 @router.delete("/applications/{app_id}")
 def delete_application(

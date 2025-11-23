@@ -11,7 +11,7 @@ app = FastAPI(title="CampusStay API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://campusstay-1.onrender.com",
+        "http://localhost:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -30,10 +30,12 @@ async def startup_event():
 from .routers import auth, admin, students, property, applications
 
 app.include_router(auth.router)
+app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(admin.router)
 app.include_router(students.router)
 app.include_router(property.router)
 app.include_router(applications.router)
+app.include_router(students.router, prefix="/applications", tags=["Students"])
 
 # ── 5. Serve uploaded images (if you still use local uploads) ─
 UPLOAD_DIR = "static/uploads/properties"

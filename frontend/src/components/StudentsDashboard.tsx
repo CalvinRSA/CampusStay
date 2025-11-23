@@ -141,7 +141,7 @@ export default function StudentsDashboard() {
     confirm_password: '',
   });
 
-  const API = 'https://campusstay-h3qu.onrender.com/student';
+  const API = 'https://campusstay-h3qu.onrender.com';
 
   const showNotification = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     const id = Date.now();

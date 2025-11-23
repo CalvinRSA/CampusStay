@@ -147,7 +147,7 @@ export default function AdminDashboard() {
     removedImages: [] as string[],
   });
 
-  const API = 'https://campusstay-h3qu.onrender.com/admin';
+const API = 'https://campusstay-h3qu.onrender.com/admin';
 
   const showNotification = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     const id = Date.now();

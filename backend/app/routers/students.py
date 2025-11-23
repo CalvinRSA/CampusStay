@@ -9,7 +9,8 @@ import os
 from uuid import uuid4
 from botocore.client import Config
 
-router = APIRouter()
+router = APIRouter(prefix="/applications", tags=["Students"])
+
 
 # Cloudflare R2 Configuration
 R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
@@ -44,7 +45,7 @@ def get_current_student(user=Depends(get_current_user)):
     return user
 
 
-@router.get("/applications/my-applications")
+@router.get("/my-applications")
 def get_my_applications(
     db: Session = Depends(database.get_db),
     student: models.Student = Depends(get_current_student)
@@ -72,7 +73,7 @@ def get_my_applications(
     return result
 
 
-@router.post("/applications/my-applications")
+@router.post("/my-applications")
 def create_application(
     data: dict,
     db: Session = Depends(database.get_db),
