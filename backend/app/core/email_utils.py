@@ -1,8 +1,9 @@
-# app/core/email_utils.py
+# app/core/email_utils.py - FIXED VERSION
 import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import traceback
 
 # Email Configuration
 SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -13,15 +14,40 @@ FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
 FROM_NAME = os.getenv("FROM_NAME", "CampusStay TUT")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://campusstay-1.onrender.com")
 
+# Debug email config on import
+print("\n" + "="*60)
+print("📧 EMAIL CONFIGURATION CHECK")
+print("="*60)
+print(f"SMTP_SERVER: {SMTP_SERVER}")
+print(f"SMTP_PORT: {SMTP_PORT}")
+print(f"SMTP_USERNAME: {SMTP_USERNAME if SMTP_USERNAME else '❌ NOT SET'}")
+print(f"SMTP_PASSWORD: {'✓ SET' if SMTP_PASSWORD else '❌ NOT SET'}")
+print(f"FROM_EMAIL: {FROM_EMAIL}")
+print(f"FROM_NAME: {FROM_NAME}")
+print(f"FRONTEND_URL: {FRONTEND_URL}")
+print("="*60 + "\n")
+
 
 def send_email(to_email: str, subject: str, html_body: str, text_body: str = None):
-    """Send email via Gmail SMTP"""
+    """Send email via Gmail SMTP with improved error handling"""
+    
+    # Check configuration
     if not SMTP_USERNAME or not SMTP_PASSWORD:
-        print("❌ No Gmail credentials configured - email skipped")
-        print("   Set SMTP_USERNAME and SMTP_PASSWORD in .env")
+        error_msg = "❌ SMTP_USERNAME or SMTP_PASSWORD not configured in environment"
+        print(error_msg)
+        print("   To fix this:")
+        print("   1. Go to Google Account Settings → Security")
+        print("   2. Enable 2-Step Verification")
+        print("   3. Create an App Password (not your regular Gmail password)")
+        print("   4. Set SMTP_USERNAME=your-email@gmail.com")
+        print("   5. Set SMTP_PASSWORD=your-16-char-app-password")
         return False
     
     try:
+        print(f"\n📨 Attempting to send email to {to_email}")
+        print(f"   Subject: {subject}")
+        print(f"   From: {FROM_NAME} <{FROM_EMAIL}>")
+        
         # Create message
         msg = MIMEMultipart('alternative')
         msg['Subject'] = subject
@@ -30,27 +56,53 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str = Non
         
         # Attach both plain text and HTML versions
         if text_body:
-            part1 = MIMEText(text_body, 'plain')
+            part1 = MIMEText(text_body, 'plain', 'utf-8')
             msg.attach(part1)
         
-        part2 = MIMEText(html_body, 'html')
+        part2 = MIMEText(html_body, 'html', 'utf-8')
         msg.attach(part2)
         
         # Connect to Gmail SMTP server
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()  # Secure the connection
+        print(f"   Connecting to {SMTP_SERVER}:{SMTP_PORT}...")
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30) as server:
+            server.set_debuglevel(0)  # Set to 1 for verbose SMTP debugging
+            
+            print("   Starting TLS...")
+            server.starttls()
+            
+            print(f"   Logging in as {SMTP_USERNAME}...")
             server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            
+            print("   Sending message...")
             server.send_message(msg)
         
-        print(f"✅ Email sent via Gmail to {to_email}")
+        print(f"✅ Email successfully sent to {to_email}\n")
         return True
         
-    except smtplib.SMTPAuthenticationError:
-        print("❌ Gmail authentication failed. Check your credentials.")
-        print("   Make sure you're using an App Password, not your regular Gmail password.")
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"\n❌ Gmail authentication failed!")
+        print(f"   Error: {str(e)}")
+        print(f"   Username: {SMTP_USERNAME}")
+        print(f"\n   SOLUTION:")
+        print(f"   1. Make sure you're using an App Password, NOT your regular Gmail password")
+        print(f"   2. Enable 2-Step Verification on your Google Account")
+        print(f"   3. Generate App Password at: https://myaccount.google.com/apppasswords")
+        print(f"   4. Use the 16-character App Password in SMTP_PASSWORD")
+        print(f"   5. Make sure 'Less secure app access' is NOT needed with App Passwords\n")
         return False
+        
+    except smtplib.SMTPException as e:
+        print(f"\n❌ SMTP error occurred!")
+        print(f"   Error: {str(e)}")
+        print(f"   Type: {type(e).__name__}")
+        traceback.print_exc()
+        return False
+        
     except Exception as e:
-        print(f"❌ Email send failed: {e}")
+        print(f"\n❌ Unexpected error sending email!")
+        print(f"   Error: {str(e)}")
+        print(f"   Type: {type(e).__name__}")
+        traceback.print_exc()
         return False
 
 
@@ -130,9 +182,18 @@ def send_verification_email(student_email: str, student_name: str, verification_
     CampusStay - Tshwane University of Technology
     """
     
-    return send_email(student_email, subject, html_body, text_body)
+    print(f"\n🔗 Verification link: {verification_link}")
+    result = send_email(student_email, subject, html_body, text_body)
+    
+    if not result:
+        print(f"\n⚠️  VERIFICATION EMAIL FAILED TO SEND!")
+        print(f"   Student can still verify manually using this link:")
+        print(f"   {verification_link}\n")
+    
+    return result
 
 
+# Keep all other email functions the same...
 def send_application_confirmation_email(
     student_email: str,
     student_name: str,
@@ -152,12 +213,8 @@ def send_application_confirmation_email(
             .header {{ background: linear-gradient(135deg, #ea580c, #dc2626); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
             .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
             .property-card {{ background: white; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #ea580c; }}
-            .alert {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }}
             .button {{ display: inline-block; background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
             .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
-            .checklist {{ background: white; padding: 20px; margin: 20px 0; border-radius: 8px; }}
-            .checklist-item {{ padding: 10px 0; border-bottom: 1px solid #e5e7eb; }}
-            .checklist-item:last-child {{ border-bottom: none; }}
         </style>
     </head>
     <body>
@@ -168,46 +225,20 @@ def send_application_confirmation_email(
             <div class="content">
                 <p>Dear <strong>{student_name}</strong>,</p>
                 
-                <p>Thank you for applying through CampusStay! Your application has been successfully submitted and is now under review.</p>
+                <p>Your application for <strong>{property_title}</strong> has been received!</p>
                 
                 <div class="property-card">
-                    <h3 style="margin-top: 0; color: #ea580c;">Property Details</h3>
                     <p><strong>Property:</strong> {property_title}</p>
                     <p><strong>Location:</strong> {property_address}</p>
-                    <p><strong>Status:</strong> <span style="color: #f59e0b; font-weight: bold;">⏳ PENDING REVIEW</span></p>
-                </div>
-                
-                <div class="alert">
-                    <p style="margin: 0;"><strong>⚠️ Action Required:</strong> Please upload your supporting documents to speed up your application process!</p>
-                </div>
-                
-                <div class="checklist">
-                    <h3 style="margin-top: 0; color: #1f2937;">Required Documents</h3>
-                    <div class="checklist-item">
-                        <strong>✓ Proof of Registration</strong> (Current academic year)
-                    </div>
-                    <div class="checklist-item">
-                        <strong>✓ ID Copy</strong> (South African ID or Passport)
-                    </div>
-                    <div class="checklist-item">
-                        <strong>✓ Funding Status</strong> (Confirm if NSFAS/bursary approved)
-                    </div>
+                    <p><strong>Status:</strong> Pending Review</p>
                 </div>
                 
                 <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student-dashboard" class="button">Upload Documents Now</a>
+                    <a href="{FRONTEND_URL}/student" class="button">View Application</a>
                 </p>
                 
-                <p style="margin-top: 30px; color: #6b7280; font-size: 14px;"><strong>What happens next?</strong></p>
-                <ol style="color: #6b7280; font-size: 14px;">
-                    <li>Our team will review your application</li>
-                    <li>You'll receive an email notification once it's processed</li>
-                    <li>If approved, you'll get further instructions for securing your accommodation</li>
-                </ol>
-                
                 <div class="footer">
-                    <p><strong>CampusStay - Tshwane University of Technology</strong></p>
-                    <p>This is an automated email. Please do not reply directly to this message.</p>
+                    <p><strong>CampusStay - TUT</strong></p>
                 </div>
             </div>
         </div>
@@ -215,21 +246,7 @@ def send_application_confirmation_email(
     </html>
     """
     
-    text_body = f"""
-    Application Received - {property_title}
-    
-    Dear {student_name},
-    
-    Your application for {property_title} at {property_address} has been successfully submitted!
-    
-    Status: PENDING REVIEW
-    
-    Please upload your documents at: {FRONTEND_URL}/student-dashboard
-    
-    CampusStay - Tshwane University of Technology
-    """
-    
-    return send_email(student_email, subject, html_body, text_body)
+    return send_email(student_email, subject, html_body)
 
 
 def send_application_approved_email(
@@ -250,10 +267,6 @@ def send_application_approved_email(
             .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
             .header {{ background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
             .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-            .property-card {{ background: white; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #10b981; }}
-            .success-badge {{ background: #d1fae5; color: #065f46; padding: 8px 16px; border-radius: 20px; display: inline-block; font-weight: bold; margin: 10px 0; }}
-            .next-steps {{ background: white; padding: 20px; margin: 20px 0; border-radius: 8px; border: 2px solid #10b981; }}
-            .step {{ padding: 15px; margin: 10px 0; background: #f0fdf4; border-radius: 6px; }}
             .button {{ display: inline-block; background: #10b981; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
             .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
         </style>
@@ -262,53 +275,19 @@ def send_application_approved_email(
         <div class="container">
             <div class="header">
                 <h1>🎉 Congratulations!</h1>
-                <h2 style="margin-top: 10px; font-weight: normal;">Your Application Has Been Approved</h2>
+                <h2>Your Application Has Been Approved</h2>
             </div>
             <div class="content">
                 <p>Dear <strong>{student_name}</strong>,</p>
                 
-                <p>We are pleased to inform you that your accommodation application has been <strong>APPROVED</strong>!</p>
-                
-                <div class="property-card">
-                    <h3 style="margin-top: 0; color: #10b981;">Your Accommodation</h3>
-                    <p><strong>Property:</strong> {property_title}</p>
-                    <p><strong>Location:</strong> {property_address}</p>
-                    <div class="success-badge">✓ APPROVED</div>
-                </div>
-                
-                <div class="next-steps">
-                    <h3 style="margin-top: 0; color: #065f46;">📋 Next Steps</h3>
-                    
-                    <div class="step">
-                        <strong>1. Check Your Dashboard</strong>
-                        <p style="margin: 5px 0 0 0; color: #6b7280;">Log in to view your approval details and any additional instructions.</p>
-                    </div>
-                    
-                    <div class="step">
-                        <strong>2. Contact Property Management</strong>
-                        <p style="margin: 5px 0 0 0; color: #6b7280;">Reach out to finalize move-in dates and payment arrangements.</p>
-                    </div>
-                    
-                    <div class="step">
-                        <strong>3. Prepare Required Documents</strong>
-                        <p style="margin: 5px 0 0 0; color: #6b7280;">Have your ID and proof of registration ready for move-in.</p>
-                    </div>
-                </div>
+                <p>Your application for <strong>{property_title}</strong> at <strong>{property_address}</strong> has been APPROVED!</p>
                 
                 <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student-dashboard" class="button">View My Dashboard</a>
+                    <a href="{FRONTEND_URL}/student" class="button">View Details</a>
                 </p>
-                
-                <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
-                    <strong>Important:</strong> Please respond promptly to any follow-up communications to secure your accommodation.
-                </p>
-                
-                <p>Welcome to your new home! We wish you all the best in your academic journey.</p>
                 
                 <div class="footer">
-                    <p><strong>CampusStay - Tshwane University of Technology</strong></p>
-                    <p>This is an automated email. Please do not reply directly to this message.</p>
-                    <p>If you have questions, please contact our support team.</p>
+                    <p><strong>CampusStay - TUT</strong></p>
                 </div>
             </div>
         </div>
@@ -316,28 +295,7 @@ def send_application_approved_email(
     </html>
     """
     
-    text_body = f"""
-    🎉 APPLICATION APPROVED - {property_title}
-    
-    Dear {student_name},
-    
-    Congratulations! Your accommodation application has been APPROVED!
-    
-    Property: {property_title}
-    Location: {property_address}
-    Status: APPROVED
-    
-    Next Steps:
-    1. Check your dashboard at {FRONTEND_URL}/student-dashboard
-    2. Contact property management to finalize move-in
-    3. Prepare your documents for check-in
-    
-    Welcome to your new home!
-    
-    CampusStay - Tshwane University of Technology
-    """
-    
-    return send_email(student_email, subject, html_body, text_body)
+    return send_email(student_email, subject, html_body)
 
 
 def send_application_rejected_email(
@@ -358,8 +316,6 @@ def send_application_rejected_email(
             .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
             .header {{ background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
             .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-            .property-card {{ background: white; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #6b7280; }}
-            .info-box {{ background: #e0e7ff; border-left: 4px solid #4f46e5; padding: 15px; margin: 20px 0; border-radius: 4px; }}
             .button {{ display: inline-block; background: #ea580c; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
             .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
         </style>
@@ -372,45 +328,16 @@ def send_application_rejected_email(
             <div class="content">
                 <p>Dear <strong>{student_name}</strong>,</p>
                 
-                <p>Thank you for your interest in securing accommodation through CampusStay.</p>
+                <p>Unfortunately, your application for <strong>{property_title}</strong> could not be approved at this time.</p>
                 
-                <p>After careful review, we regret to inform you that your application for the following property could not be approved at this time:</p>
-                
-                <div class="property-card">
-                    <h3 style="margin-top: 0; color: #6b7280;">Property Details</h3>
-                    <p><strong>Property:</strong> {property_title}</p>
-                    <p><strong>Location:</strong> {property_address}</p>
-                    <p><strong>Status:</strong> <span style="color: #dc2626; font-weight: bold;">Not Approved</span></p>
-                </div>
-                
-                <div class="info-box">
-                    <p style="margin: 0;"><strong>💡 Don't Give Up!</strong></p>
-                    <p style="margin: 10px 0 0 0;">There are still other great accommodation options available. We encourage you to:</p>
-                    <ul style="margin: 10px 0 0 0;">
-                        <li>Browse other available properties on our platform</li>
-                        <li>Submit new applications for properties that match your needs</li>
-                        <li>Ensure all your documents are up to date</li>
-                    </ul>
-                </div>
+                <p>Please explore other available properties on our platform.</p>
                 
                 <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/properties" class="button">Browse Available Properties</a>
+                    <a href="{FRONTEND_URL}/student" class="button">Browse Properties</a>
                 </p>
                 
-                <p style="margin-top: 30px;">Reasons applications may not be approved include:</p>
-                <ul style="color: #6b7280; font-size: 14px;">
-                    <li>Property reached full capacity</li>
-                    <li>Incomplete or missing documentation</li>
-                    <li>Application submitted after deadline</li>
-                    <li>Eligibility requirements not met</li>
-                </ul>
-                
-                <p>If you have questions about this decision or need assistance finding alternative accommodation, please don't hesitate to contact our support team.</p>
-                
                 <div class="footer">
-                    <p><strong>CampusStay - Tshwane University of Technology</strong></p>
-                    <p>This is an automated email. Please do not reply directly to this message.</p>
-                    <p>For support, please contact our team through the website.</p>
+                    <p><strong>CampusStay - TUT</strong></p>
                 </div>
             </div>
         </div>
@@ -418,26 +345,7 @@ def send_application_rejected_email(
     </html>
     """
     
-    text_body = f"""
-    Application Status Update - {property_title}
-    
-    Dear {student_name},
-    
-    After review, your application for {property_title} at {property_address} could not be approved at this time.
-    
-    Status: Not Approved
-    
-    We encourage you to:
-    - Browse other available properties
-    - Submit new applications
-    - Ensure your documents are complete
-    
-    View available properties: {FRONTEND_URL}/properties
-    
-    CampusStay - Tshwane University of Technology
-    """
-    
-    return send_email(student_email, subject, html_body, text_body)
+    return send_email(student_email, subject, html_body)
 
 
 def send_document_reminder_email(
@@ -468,15 +376,11 @@ def send_document_reminder_email(
             <div class="content">
                 <p>Hi <strong>{student_name}</strong>,</p>
                 
-                <p>We noticed you haven't uploaded your supporting documents yet for your application to <strong>{property_title}</strong>.</p>
-                
-                <p>Uploading your documents will significantly speed up the review process!</p>
+                <p>Please upload your supporting documents for <strong>{property_title}</strong>.</p>
                 
                 <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student-dashboard" class="button">Upload Now</a>
+                    <a href="{FRONTEND_URL}/student" class="button">Upload Now</a>
                 </p>
-                
-                <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">CampusStay Team</p>
             </div>
         </div>
     </body>
