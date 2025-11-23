@@ -27,15 +27,13 @@ async def startup_event():
     print("Database tables ensured (startup complete)")
 
 # ── 4. Include routers ───────────────────────────────────────
-from .routers import auth, admin, students, property, applications
+from .routers import auth, admin, students, property
 
-app.include_router(auth.router)
-app.include_router(auth.router, prefix="/auth", tags=["Auth"])
-app.include_router(admin.router)
-app.include_router(students.router)
-app.include_router(property.router)
-app.include_router(applications.router)
-app.include_router(students.router, prefix="/applications", tags=["Students"])
+# Each router should only be included ONCE
+app.include_router(auth.router)        # /auth prefix already in router definition
+app.include_router(admin.router)       # /admin prefix already in router definition
+app.include_router(students.router)    # /applications prefix already in router definition
+app.include_router(property.router)    # /properties prefix already in router definition
 
 # ── 5. Serve uploaded images (if you still use local uploads) ─
 UPLOAD_DIR = "static/uploads/properties"
