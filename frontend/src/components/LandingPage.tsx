@@ -27,17 +27,46 @@ export default function LandingPage() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setLoginLoading(true);
 
     try {
-      await login({ email: loginData.email, password: loginData.password });
+      console.log('=== LOGIN STARTED ===');
+      const result = await login({ email: loginData.email, password: loginData.password });
+      console.log('Login result:', result);
+      
       showNotification('Login successful!', 'success');
+      
+      // Close modal
       setShowLogin(false);
-      // Success! App.tsx will auto-redirect in <1 second
+      
+      console.log('Login complete, waiting for redirect...');
+      console.log('Current localStorage user:', localStorage.getItem('user'));
+      console.log('Current localStorage token:', localStorage.getItem('access_token')?.substring(0, 20) + '...');
+      
+      // Force a small delay to ensure state updates
+      setTimeout(() => {
+        console.log('Checking if redirect happened...');
+        console.log('Current path:', window.location.pathname);
+        
+        // If still on home page after 500ms, manually redirect
+        if (window.location.pathname === '/') {
+          const user = JSON.parse(localStorage.getItem('user') || '{}');
+          console.log('Manual redirect for user:', user);
+          if (user.role === 'admin') {
+            console.log('Forcing redirect to /admin');
+            window.location.href = '/admin';
+          } else if (user.role === 'student') {
+            console.log('Forcing redirect to /student');
+            window.location.href = '/student';
+          }
+        }
+      }, 500);
+      
     } catch (err: any) {
+      console.error('Login error:', err);
       setLoginError(err.message || "Incorrect email or password");
       showNotification(err.message || "Incorrect email or password", 'error');
     } finally {
