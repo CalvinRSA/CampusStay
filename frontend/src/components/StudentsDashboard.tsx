@@ -1,3 +1,4 @@
+
 import { useState, useEffect, type FormEvent } from 'react';
 import {
   Home,
@@ -77,61 +78,10 @@ const CAMPUSES = [
 ];
 
 export default function StudentsDashboard() {
+  // ✅ ALL HOOKS FIRST - Before any returns!
   const [authReady, setAuthReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
-
-  // Check auth on mount and when localStorage changes
-  useEffect(() => {
-    const checkAuth = () => {
-      const storedToken = localStorage.getItem('access_token');
-      const userJson = localStorage.getItem('user');
-      const storedUser = userJson ? JSON.parse(userJson) : null;
-      
-      console.log('StudentsDashboard auth check:', { token: !!storedToken, user: storedUser }); // Debug
-      
-      setToken(storedToken);
-      setUser(storedUser);
-      setAuthReady(true);
-    };
-
-    checkAuth();
-    window.addEventListener('auth-change', checkAuth);
-    return () => window.removeEventListener('auth-change', checkAuth);
-  }, []);
-
-  // Show loading while checking auth
-  if (!authReady) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Redirect if not student
-  if (!token || !user || user.role !== 'student') {
-    console.log('Access denied:', { token: !!token, user, role: user?.role }); // Debug
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="text-center">
-          <User className="w-16 h-16 text-orange-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Restricted</h2>
-          <p className="text-gray-600 mb-6">This page is for students only.</p>
-          <a
-            href="/"
-            className="inline-flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700 transition"
-          >
-            <Home className="w-5 h-5" /> Back to Home
-          </a>
-        </div>
-      </div>
-    );
-  }
-
   const [properties, setProperties] = useState<Property[]>([]);
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
   const [favorites, setFavorites] = useState<number[]>([]);
@@ -222,9 +172,31 @@ export default function StudentsDashboard() {
     }
   };
 
+  // Check auth on mount
   useEffect(() => {
-    loadData();
+    const checkAuth = () => {
+      const storedToken = localStorage.getItem('access_token');
+      const userJson = localStorage.getItem('user');
+      const storedUser = userJson ? JSON.parse(userJson) : null;
+      
+      console.log('StudentsDashboard auth check:', { token: !!storedToken, user: storedUser });
+      
+      setToken(storedToken);
+      setUser(storedUser);
+      setAuthReady(true);
+    };
+
+    checkAuth();
+    window.addEventListener('auth-change', checkAuth);
+    return () => window.removeEventListener('auth-change', checkAuth);
   }, []);
+
+  // Load data when authenticated
+  useEffect(() => {
+    if (authReady && token && user?.role === 'student') {
+      loadData();
+    }
+  }, [authReady, token, user]);
 
   // Load favorites from localStorage
   useEffect(() => {
@@ -236,7 +208,6 @@ export default function StudentsDashboard() {
   useEffect(() => {
     let list = [...properties];
 
-    // Search query
     if (filters.searchQuery) {
       const q = filters.searchQuery.toLowerCase();
       list = list.filter(
@@ -244,14 +215,12 @@ export default function StudentsDashboard() {
       );
     }
 
-    // Property type
     if (filters.propertyType !== 'all') {
       list = list.filter((p) =>
         filters.propertyType === 'bachelor' ? p.is_bachelor : !p.is_bachelor
       );
     }
 
-    // Campus intake
     if (filters.campusIntake.length > 0) {
       list = list.filter((p) => {
         const campuses = p.campus_intake.split(', ').map((c) => c.trim());
@@ -259,15 +228,42 @@ export default function StudentsDashboard() {
       });
     }
 
-    // Space per student
     if (filters.minSpace) list = list.filter((p) => p.space_per_student >= +filters.minSpace);
     if (filters.maxSpace) list = list.filter((p) => p.space_per_student <= +filters.maxSpace);
-
-    // Available only
     if (filters.availableOnly) list = list.filter((p) => p.available_flats > 0);
 
     setFilteredProperties(list);
   }, [filters, properties]);
+
+  // ✅ NOW conditional returns are AFTER all hooks
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!token || !user || user.role !== 'student') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <User className="w-16 h-16 text-orange-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Restricted</h2>
+          <p className="text-gray-600 mb-6">This page is for students only.</p>
+          <a
+            href="/"
+            className="inline-flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700 transition"
+          >
+            <Home className="w-5 h-5" /> Back to Home
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   const toggleFavorite = (id: number) => {
     const newFavs = favorites.includes(id)
@@ -523,17 +519,6 @@ export default function StudentsDashboard() {
                   {tab === 'applications' && <FileText className="w-4 h-4 inline mr-2" />}
                   {tab === 'profile' && <User className="w-4 h-4 inline mr-2" />}
                   {tab}
-                  {tab === 'favorites' && favorites.length > 0 && (
-                    <span className="ml-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 inline-flex items-center justify-center">
-                      {favorites.length}
-                    </span>
-                  )}
-                  {tab === 'applications' &&
-                    applications.filter((a) => a.status === 'pending').length > 0 && (
-                      <span className="ml-2 bg-blue-500 text-white text-xs rounded-full w-5 h-5 inline-flex items-center justify-center">
-                        {applications.filter((a) => a.status === 'pending').length}
-                      </span>
-                    )}
                 </button>
               ))}
               <button
