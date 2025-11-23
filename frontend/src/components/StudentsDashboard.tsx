@@ -77,12 +77,44 @@ const CAMPUSES = [
 ];
 
 export default function StudentsDashboard() {
-  const token = localStorage.getItem('access_token');
-  const userJson = localStorage.getItem('user');
-  const user = userJson ? JSON.parse(userJson) : null;
+  const [authReady, setAuthReady] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
+
+  // Check auth on mount and when localStorage changes
+  useEffect(() => {
+    const checkAuth = () => {
+      const storedToken = localStorage.getItem('access_token');
+      const userJson = localStorage.getItem('user');
+      const storedUser = userJson ? JSON.parse(userJson) : null;
+      
+      console.log('StudentsDashboard auth check:', { token: !!storedToken, user: storedUser }); // Debug
+      
+      setToken(storedToken);
+      setUser(storedUser);
+      setAuthReady(true);
+    };
+
+    checkAuth();
+    window.addEventListener('auth-change', checkAuth);
+    return () => window.removeEventListener('auth-change', checkAuth);
+  }, []);
+
+  // Show loading while checking auth
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Redirect if not student
   if (!token || !user || user.role !== 'student') {
+    console.log('Access denied:', { token: !!token, user, role: user?.role }); // Debug
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="text-center">

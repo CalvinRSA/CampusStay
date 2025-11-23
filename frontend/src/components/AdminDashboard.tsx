@@ -167,20 +167,39 @@ const API = 'https://campusstay-production.up.railway.app/admin';
     return fetch(input, { ...init, headers });
   };
 
-  const loadData = async () => {
+const loadData = async () => {
     setLoading(true);
     try {
+      console.log('Loading admin data...'); // Debug
+      console.log('Token:', localStorage.getItem('access_token')?.substring(0, 20) + '...'); // Debug
+      
       const [propRes, appRes, statsRes] = await Promise.all([
         fetchWithAuth(`${API}/properties`),
         fetchWithAuth(`${API}/applications`),
         fetchWithAuth(`${API}/stats`),
       ]);
+      
+      console.log('Response statuses:', {
+        properties: propRes.status,
+        applications: appRes.status,
+        stats: statsRes.status
+      }); // Debug
+      
       if (propRes.ok) setProperties(await propRes.json());
       if (appRes.ok) setApplications(await appRes.json());
       if (statsRes.ok) setStats(await statsRes.json());
-    } catch (err) {
-      showNotification('error', 'Failed to load data');
-      console.error('Failed to load data:', err);
+      
+      // Show error for any failed requests
+      if (!propRes.ok || !appRes.ok || !statsRes.ok) {
+        const errors = [];
+        if (!propRes.ok) errors.push('properties');
+        if (!appRes.ok) errors.push('applications');
+        if (!statsRes.ok) errors.push('stats');
+        showNotification('warning', `Failed to load: ${errors.join(', ')}`);
+      }
+    } catch (err: any) {
+      console.error('Load data error:', err); // Debug
+      showNotification('error', err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
