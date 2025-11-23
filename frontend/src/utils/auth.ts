@@ -22,23 +22,25 @@ export async function login(data: LoginData) {
     body: new URLSearchParams({ username: data.email, password: data.password }),
   });
 
+  console.log('Login response:', res); // Debug: see what backend returns
+
   // Store auth data
   localStorage.setItem('access_token', res.access_token);
-  localStorage.setItem(
-    'user',
-    JSON.stringify({
-      email: res.email || data.email,
-      full_name: res.full_name || data.email.split('@')[0],
-      role: res.role,              // ← this is correct
-      student_id: res.student_id || null,
-    })
-  );
+  
+  // Make sure we're getting the user info properly
+  const userInfo = {
+    email: res.email || data.email,
+    full_name: res.full_name || data.email.split('@')[0],
+    role: res.role || res.user_role || 'student', // Try multiple fields
+    student_id: res.student_id || null,
+  };
+  
+  console.log('Storing user info:', userInfo); // Debug: see what we're storing
+  
+  localStorage.setItem('user', JSON.stringify(userInfo));
 
-  // Just dispatch the event → App.tsx will handle redirect automatically
+  // Dispatch event to trigger App.tsx rerender
   window.dispatchEvent(new Event('auth-change'));
-
-  // ←←← REMOVE THE SETTIMEOUT ENTIRELY ←←←
-  // No manual redirect needed!
 
   return res;
 }
