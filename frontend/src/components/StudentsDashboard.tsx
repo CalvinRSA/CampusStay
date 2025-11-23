@@ -123,7 +123,7 @@ export default function StudentsDashboard() {
     confirm_password: '',
   });
 
-  const API = 'https://campusstay-production.up.railway.app/students';
+  const API = 'https://campusstay-production.up.railway.app';
 
   const showNotification = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     const id = Date.now();
@@ -140,13 +140,13 @@ export default function StudentsDashboard() {
   };
 
   const loadData = async () => {
-    setLoading(true);
-    try {
-      const [propsRes, appsRes, profRes] = await Promise.all([
-        fetchWithAuth(`${API}/properties`),
-        fetchWithAuth(`${API}/applications/my-applications`),
-        fetchWithAuth(`${API}/auth/me`),
-      ]);
+  setLoading(true);
+  try {
+    const [propsRes, appsRes, profRes] = await Promise.all([
+      fetchWithAuth(`${API}/properties`),              // ✅ Correct
+      fetchWithAuth(`${API}/applications/my-applications`),  // ✅ Correct
+      fetchWithAuth(`${API}/auth/me`),                 // ✅ Correct
+    ]);
 
       if (propsRes.ok) {
         const props = await propsRes.json();
