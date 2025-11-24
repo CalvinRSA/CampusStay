@@ -14,7 +14,21 @@ app = FastAPI(
     redirect_slashes=False  # Prevents 307 redirects
 )
 
-# ── 2. HTTPS Enforcement Middleware ───────────────────────────
+# ── 2. CORS FIRST (IMPORTANT - Must be before other middleware) ──
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://campusstay-1.onrender.com",
+        "http://localhost:5173",  # For local development
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
+# ── 3. HTTPS Enforcement Middleware (After CORS) ─────────────
 class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Check if request came through HTTP (Railway sets x-forwarded-proto)
@@ -34,17 +48,6 @@ class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(HTTPSRedirectMiddleware)
-
-# ── 3. CORS ───────────────────────────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://campusstay-1.onrender.com",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ── 4. Startup – create tables ───────────────────────────────
 @app.on_event("startup")
@@ -76,3 +79,15 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+@app.get("/debug/cors")
+def debug_cors():
+    """Debug endpoint to check CORS configuration"""
+    return {
+        "message": "If you can see this, CORS is working!",
+        "allowed_origins": [
+            "https://campusstay-1.onrender.com",
+            "http://localhost:5173",
+            "http://localhost:3000",
+        ]
+    }
