@@ -17,11 +17,11 @@ if DATABASE_URL:
     print("Connected to cloud PostgreSQL")
 else:
     # Local development fallback
-    user = os.getenv("POSTGRES_USER", "admin")
-    password = os.getenv("POSTGRES_PASSWORD", "123456")
-    host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    db = os.getenv("POSTGRES_DB", "campusstay")
+    user = os.getenv("POSTGRES_USER")
+    password = os.getenv("POSTGRES_PASSWORD")
+    host = os.getenv("POSTGRES_HOST")
+    port = os.getenv("POSTGRES_PORT")
+    db = os.getenv("POSTGRES_DB")
     
     DATABASE_URL = f"postgresql+psycopg://{user}:{password}@{host}:{port}/{db}?sslmode=disable"
     print(f"Local DB: postgresql+psycopg://{user}:***@{host}:{port}/{db}")
