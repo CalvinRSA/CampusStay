@@ -63,10 +63,10 @@ async def startup_event():
 from .routers import auth, admin, students, property
 
 app.include_router(auth.router)                                 # /auth/login, /auth/me, etc.
-app.include_router(admin.router, prefix="/admin")              # /admin/stats, /admin/applications
-app.include_router(property.router)                            # /properties (public)
-app.include_router(students.router, prefix="/students")        # ← ADD THIS
-app.include_router(students.router, prefix="/students/auth")   # ← AND THIS
+app.include_router(admin.router)              # /admin/stats, /admin/applications
+app.include_router(property.router, prefix="/students")                            # /properties (public)
+app.include_router(students.router)        # ← ADD THIS
+app.include_router(students.router)   # ← AND THIS
 # ── 6. Serve uploaded images (if you still use local uploads) ─
 UPLOAD_DIR = "static/uploads/properties"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
