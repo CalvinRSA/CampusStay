@@ -7,7 +7,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 # ── 1. FastAPI app ─────────────────────────────────────────────
-app = FastAPI(title="CampusStay API", version="1.0.0")
+# ✅ Disable automatic trailing slash redirects globally
+app = FastAPI(
+    title="CampusStay API", 
+    version="1.0.0",
+    redirect_slashes=False  # Prevents 307 redirects
+)
 
 # ── 2. HTTPS Enforcement Middleware ───────────────────────────
 class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
