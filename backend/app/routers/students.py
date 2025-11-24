@@ -1,19 +1,16 @@
-# app/routers/students.py - CLEAN VERSION
-
+# app/routers/students.py - UPDATED WITH EMAIL VERIFICATION CHECK
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
-from typing import Optional
 from .. import models, database
 from .auth import get_current_user
-from ..core.email_utils import send_application_confirmation_email
-from pydantic import BaseModel
+from ..core.email_utils import send_application_confirmation_email, send_document_reminder_email
 import boto3
 import os
 from uuid import uuid4
 from botocore.client import Config
 
-# ✅ Set redirect_slashes=False
-router = APIRouter(prefix="/applications", tags=["Students"], redirect_slashes=False)
+router = APIRouter(prefix="/applications", tags=["Students"])
+
 
 # Cloudflare R2 Configuration
 R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
@@ -23,19 +20,18 @@ R2_BUCKET = os.getenv("R2_BUCKET")
 R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL")
 
 if not all([R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ACCOUNT_ID, R2_BUCKET, R2_PUBLIC_URL]):
-    print("⚠️ Warning: R2 configuration missing. File uploads will not work.")
-    s3_client = None
-else:
-    R2_ENDPOINT = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-    s3_client = boto3.client(
-        "s3",
-        endpoint_url=R2_ENDPOINT,
-        aws_access_key_id=R2_ACCESS_KEY_ID,
-        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
-        region_name="auto",
-        config=Config(signature_version='s3v4')
-    )
+    raise RuntimeError("Missing R2 configuration. Please check environment variables.")
 
+R2_ENDPOINT = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+s3_client = boto3.client(
+    "s3",
+    endpoint_url=R2_ENDPOINT,
+    aws_access_key_id=R2_ACCESS_KEY_ID,
+    aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+    region_name="auto",
+    config=Config(signature_version='s3v4')
+)
 
 def get_public_url(key: str) -> str:
     """Generate public URL for R2 object"""
@@ -49,36 +45,27 @@ def get_current_student(user=Depends(get_current_user)):
     return user
 
 
-class ApplicationCreate(BaseModel):
-    property_id: int
-    notes: str = ""
-
-
-# ✅ GET MY APPLICATIONS
 @router.get("/my-applications")
 def get_my_applications(
     db: Session = Depends(database.get_db),
     student: models.Student = Depends(get_current_student)
 ):
     """Get all applications for the current student"""
-    applications = db.query(models.Application).filter(
+    apps = db.query(models.Application).filter(
         models.Application.student_id == student.id
     ).all()
     
     result = []
-    for app in applications:
-        prop = db.query(models.Property).filter(models.Property.id == app.property_id).first()
-        
+    for app in apps:
         result.append({
             "id": app.id,
-            "property_id": app.property_id,
-            "property_title": prop.title if prop else "Unknown Property",
-            "property_address": prop.address if prop else "Unknown Address",
+            "property_id": app.property.id,
+            "property_title": app.property.title,
+            "property_address": app.property.address,
             "status": app.status,
             "applied_at": app.applied_at.isoformat(),
             "notes": app.notes,
             "funding_approved": app.funding_approved,
-            # Documents from STUDENT table
             "proof_of_registration": getattr(student, 'proof_of_registration_url', None),
             "id_copy": getattr(student, 'id_document_url', None),
         })
@@ -86,10 +73,9 @@ def get_my_applications(
     return result
 
 
-# ✅ CREATE APPLICATION
 @router.post("/my-applications")
 def create_application(
-    payload: ApplicationCreate,
+    data: dict,
     db: Session = Depends(database.get_db),
     student: models.Student = Depends(get_current_student)
 ):
@@ -98,23 +84,26 @@ def create_application(
     if not student.email_verified:
         raise HTTPException(
             status_code=403,
-            detail="You must verify your email before applying. Please check your inbox for the verification link."
+            detail="You must verify your email before applying for accommodation. Please check your inbox for the verification link."
         )
+    
+    property_id = data.get("property_id")
+    notes = data.get("notes", "")
+    
+    # Validate property exists
+    prop = db.query(models.Property).filter(
+        models.Property.id == property_id
+    ).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
     
     # Check if student already applied
     existing = db.query(models.Application).filter(
         models.Application.student_id == student.id,
-        models.Application.property_id == payload.property_id
+        models.Application.property_id == property_id
     ).first()
     if existing:
         raise HTTPException(400, "You have already applied to this property")
-    
-    # Validate property exists
-    prop = db.query(models.Property).filter(
-        models.Property.id == payload.property_id
-    ).first()
-    if not prop:
-        raise HTTPException(404, "Property not found")
     
     # Check availability
     if prop.available_flats <= 0:
@@ -123,16 +112,15 @@ def create_application(
     # Create application
     app = models.Application(
         student_id=student.id,
-        property_id=payload.property_id,
-        notes=payload.notes,
-        status="pending",
-        funding_approved=False
+        property_id=property_id,
+        notes=notes,
+        status="pending"
     )
     db.add(app)
     db.commit()
     db.refresh(app)
     
-    # Send confirmation email
+    # Send confirmation email with document upload reminder
     try:
         send_application_confirmation_email(
             student_email=student.email,
@@ -143,6 +131,7 @@ def create_application(
         print(f"✅ Confirmation email sent to {student.email}")
     except Exception as e:
         print(f"⚠️ Failed to send confirmation email: {str(e)}")
+        # Don't fail the application if email fails
     
     return {
         "message": "Application submitted successfully! Check your email for next steps.",
@@ -150,15 +139,14 @@ def create_application(
     }
 
 
-# ✅ UPDATE APPLICATION (with documents)
-@router.put("/my-applications/{app_id}")
+@router.put("/applications/my-applications/{app_id}")
 async def update_application(
     app_id: int,
-    proof_of_registration: Optional[UploadFile] = File(None),
-    id_copy: Optional[UploadFile] = File(None),
+    proof_of_registration: UploadFile = File(None),
+    id_copy: UploadFile = File(None),
     funding_approved: bool = Form(False),
     db: Session = Depends(database.get_db),
-    student: models.Student = Depends(get_current_student)
+    student: models.Student = Depends(get_current_student),
 ):
     """Update application with documents and funding status"""
     # Verify application belongs to student
@@ -172,19 +160,16 @@ async def update_application(
     
     if app.status != "pending":
         raise HTTPException(400, "Can only update pending applications")
-    
-    if not s3_client:
-        raise HTTPException(500, "File upload service is not configured")
-    
+
     documents_uploaded = False
-    
+
     # Upload proof of registration to R2
-    if proof_of_registration and proof_of_registration.filename:
+    if proof_of_registration:
         if proof_of_registration.content_type != "application/pdf":
             raise HTTPException(400, "Proof of registration must be a PDF file")
         
         # Delete old file if exists
-        if student.proof_of_registration_url:
+        if hasattr(student, 'proof_of_registration_url') and student.proof_of_registration_url:
             try:
                 old_key = student.proof_of_registration_url.replace(f"{R2_PUBLIC_URL}/", "")
                 s3_client.delete_object(Bucket=R2_BUCKET, Key=old_key)
@@ -201,14 +186,14 @@ async def update_application(
         )
         student.proof_of_registration_url = get_public_url(key)
         documents_uploaded = True
-    
+
     # Upload ID copy to R2
-    if id_copy and id_copy.filename:
+    if id_copy:
         if id_copy.content_type != "application/pdf":
             raise HTTPException(400, "ID copy must be a PDF file")
         
         # Delete old file if exists
-        if student.id_document_url:
+        if hasattr(student, 'id_document_url') and student.id_document_url:
             try:
                 old_key = student.id_document_url.replace(f"{R2_PUBLIC_URL}/", "")
                 s3_client.delete_object(Bucket=R2_BUCKET, Key=old_key)
@@ -225,22 +210,28 @@ async def update_application(
         )
         student.id_document_url = get_public_url(key)
         documents_uploaded = True
-    
+
     # Update funding status
     app.funding_approved = funding_approved
     
     db.commit()
     
+    # Send thank you email if documents were uploaded
+    if documents_uploaded:
+        try:
+            print(f"✅ Documents uploaded successfully for {student.email}")
+        except Exception as e:
+            print(f"⚠️ Error after document upload: {str(e)}")
+    
     return {
         "message": "Application updated successfully! Your documents will be reviewed shortly.",
-        "proof_of_registration": student.proof_of_registration_url,
-        "id_copy": student.id_document_url,
+        "proof_of_registration": getattr(student, 'proof_of_registration_url', None),
+        "id_copy": getattr(student, 'id_document_url', None),
         "funding_approved": app.funding_approved
     }
 
 
-# ✅ DELETE APPLICATION
-@router.delete("/my-applications/{app_id}")
+@router.delete("/applications/my-applications/{app_id}")
 def delete_my_application(
     app_id: int,
     db: Session = Depends(database.get_db),
@@ -265,3 +256,33 @@ def delete_my_application(
     db.commit()
     
     return {"message": "Application deleted successfully"}
+
+
+@router.post("/applications/{app_id}/send-reminder")
+def send_reminder(
+    app_id: int,
+    db: Session = Depends(database.get_db),
+    student: models.Student = Depends(get_current_student)
+):
+    """Send reminder email to student to upload documents"""
+    app = db.query(models.Application).filter(
+        models.Application.id == app_id,
+        models.Application.student_id == student.id
+    ).first()
+    
+    if not app:
+        raise HTTPException(404, "Application not found")
+    
+    property_obj = db.query(models.Property).filter(
+        models.Property.id == app.property_id
+    ).first()
+    
+    try:
+        send_document_reminder_email(
+            student_email=student.email,
+            student_name=student.full_name,
+            property_title=property_obj.title
+        )
+        return {"message": "Reminder email sent successfully"}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to send reminder: {str(e)}")
