@@ -3,11 +3,34 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 # ── 1. FastAPI app ─────────────────────────────────────────────
 app = FastAPI(title="CampusStay API", version="1.0.0")
 
-# ── 2. CORS ───────────────────────────────────────────────────
+# ── 2. HTTPS Enforcement Middleware ───────────────────────────
+class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Check if request came through HTTP (Railway sets x-forwarded-proto)
+        forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+        
+        # Log for debugging
+        print(f"Request: {request.method} {request.url}")
+        print(f"X-Forwarded-Proto: {forwarded_proto}")
+        
+        # Don't redirect, just process the request
+        # Railway handles HTTPS termination at the load balancer
+        response = await call_next(request)
+        
+        # Add security headers
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        
+        return response
+
+app.add_middleware(HTTPSRedirectMiddleware)
+
+# ── 3. CORS ───────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -18,7 +41,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── 3. Startup – create tables ───────────────────────────────
+# ── 4. Startup – create tables ───────────────────────────────
 @app.on_event("startup")
 async def startup_event():
     from . import models
@@ -26,7 +49,7 @@ async def startup_event():
     models.Base.metadata.create_all(bind=engine)
     print("Database tables ensured (startup complete)")
 
-# ── 4. Include routers ───────────────────────────────────────
+# ── 5. Include routers ───────────────────────────────────────
 from .routers import auth, admin, students, property
 
 # Each router should only be included ONCE
@@ -35,12 +58,12 @@ app.include_router(admin.router)       # /admin prefix already in router definit
 app.include_router(students.router)    # /applications prefix already in router definition
 app.include_router(property.router)    # /properties prefix already in router definition
 
-# ── 5. Serve uploaded images (if you still use local uploads) ─
+# ── 6. Serve uploaded images (if you still use local uploads) ─
 UPLOAD_DIR = "static/uploads/properties"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# ── 6. Root & health check ───────────────────────────────────
+# ── 7. Root & health check ───────────────────────────────────
 @app.get("/")
 def root():
     return {"message": "CampusStay API is running 🚀", "docs": "/docs"}
