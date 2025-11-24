@@ -65,7 +65,6 @@ from .routers import auth, admin, students, property, applications
 app.include_router(auth.router, prefix="/students")                                 # /auth/login, /auth/me, etc.
 app.include_router(admin.router)              # /admin/stats, /admin/applications
 app.include_router(property.router, prefix="/students")                            # /properties (public)
-app.include_router(students.router)        # ← ADD THIS
 app.include_router(students.router)
 app.include_router(applications.router, prefix="/students")                     # /applications
  
