@@ -1,5 +1,6 @@
 
 import { useState, useEffect, type FormEvent } from 'react';
+import { API_BASE } from '../utils/api';
 import {
   Home,
   Search,
@@ -123,7 +124,7 @@ export default function StudentsDashboard() {
     confirm_password: '',
   });
 
-  const API = 'https://campusstay-production.up.railway.app';
+  const API = API_BASE;
 
   const showNotification = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     const id = Date.now();
@@ -134,10 +135,19 @@ export default function StudentsDashboard() {
   };
 
   const fetchWithAuth = async (input: string, init?: RequestInit) => {
-    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-    if (!(init?.body instanceof FormData)) headers['Content-Type'] = 'application/json';
-    return fetch(input, { ...init, headers });
-  };
+      // 🔒 FORCE HTTPS - Fix for mixed content error
+      let url = input;
+      if (url.startsWith('http://')) {
+        console.warn('⚠️ Converting HTTP to HTTPS:', url);
+        url = url.replace('http://', 'https://');
+      }
+      
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (!(init?.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      
+      console.log('🔗 Fetching:', url); // Debug log
+      return fetch(url, { ...init, headers });
+    };
 
   const loadData = async () => {
   setLoading(true);
