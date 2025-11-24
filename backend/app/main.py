@@ -1,6 +1,6 @@
 # backend/app/main.py
 import os
-from fastapi import FastAPI, applications
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -57,18 +57,16 @@ async def startup_event():
     models.Base.metadata.create_all(bind=engine)
     print("Database tables ensured (startup complete)")
 
-# ── 5. Include routers ───────────────────────────────────────
-from .routers import auth, admin, students, property
 
 # ✅ Each router should only be included ONCE
-app.include_router(auth, prefix="/students/auth")
-app.include_router(admin.router)       # /admin
-app.include_router(students.router)    # /applications
-app.include_router(property, prefix="/students")
-app.include_router(applications, prefix="/students")
+# backend/app/main.py — final router section
+from .routers import auth, admin, students, property
 
-
-
+app.include_router(auth.router)                                 # /auth/login, /auth/me, etc.
+app.include_router(admin.router, prefix="/admin")              # /admin/stats, /admin/applications
+app.include_router(property.router)                            # /properties (public)
+app.include_router(students.router, prefix="/students")        # ← ADD THIS
+app.include_router(students.router, prefix="/students/auth")   # ← AND THIS
 # ── 6. Serve uploaded images (if you still use local uploads) ─
 UPLOAD_DIR = "static/uploads/properties"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
