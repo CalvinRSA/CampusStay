@@ -152,9 +152,9 @@ export default function StudentsDashboard() {
   setLoading(true);
   try {
     const [propsRes, appsRes, profRes] = await Promise.all([
-      fetchWithAuth(`${API}/properties`),              // ✅ Correct
-      fetchWithAuth(`${API}/applications/my-applications`),  // ✅ Correct
-      fetchWithAuth(`${API}/auth/me`),                 // ✅ Correct
+      fetchWithAuth(`${API}/properties`),
+      fetchWithAuth(`${API}/applications/my-applications`),
+      fetchWithAuth('https://campusstay-production.up.railway.app/auth/me'),  // ✅ Use /auth/me directly
     ]);
 
       if (propsRes.ok) {
