@@ -62,7 +62,7 @@ async def startup_event():
 # backend/app/main.py — final router section
 from .routers import auth, admin, students, property, applications
 
-app.include_router(auth.router)                                 # /auth/login, /auth/me, etc.
+app.include_router(auth.router, prefix="/students/me")                                 # /auth/login, /auth/me, etc.
 app.include_router(admin.router)              # /admin/stats, /admin/applications
 app.include_router(property.router, prefix="/students")                            # /properties (public)
 app.include_router(students.router)
