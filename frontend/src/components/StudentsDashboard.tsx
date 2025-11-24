@@ -1,6 +1,5 @@
 
 import { useState, useEffect, type FormEvent } from 'react';
-import { API_BASE } from '../utils/api';
 import {
   Home,
   Search,
@@ -124,7 +123,7 @@ export default function StudentsDashboard() {
     confirm_password: '',
   });
 
-  const API = API_BASE;
+  const API = 'https://campusstay-production.up.railway.app/students';
 
   const showNotification = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     const id = Date.now();
