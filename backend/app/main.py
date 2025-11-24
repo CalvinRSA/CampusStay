@@ -60,11 +60,11 @@ async def startup_event():
 # ── 5. Include routers ───────────────────────────────────────
 from .routers import auth, admin, students, property
 
-# Each router should only be included ONCE
-app.include_router(auth.router)        # /auth prefix already in router definition
-app.include_router(admin.router)       # /admin prefix already in router definition
-app.include_router(students.router)    # /applications prefix already in router definition
-app.include_router(property.router)    # /properties prefix already in router definition
+# ✅ Each router should only be included ONCE
+app.include_router(auth.router)        # /auth
+app.include_router(admin.router)       # /admin
+app.include_router(students.router)    # /applications
+app.include_router(property.router)    # /properties
 
 # ── 6. Serve uploaded images (if you still use local uploads) ─
 UPLOAD_DIR = "static/uploads/properties"
