@@ -5,7 +5,7 @@ import traceback
 
 # Resend Configuration
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@campusstay.co.za")  # Use your verified domain email here, e.g., "CampusStay <no-reply@yourdomain.com>"
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")  # Use your verified domain email here, e.g., "CampusStay <no-reply@yourdomain.com>"
 FROM_NAME = os.getenv("FROM_NAME", "CampusStay TUT")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://campusstay-1.onrender.com")
 
