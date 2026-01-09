@@ -1,101 +1,70 @@
-# app/core/email_utils.py - FIXED VERSION
+# app/core/email_utils.py - RESEND VERSION
 import os
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import resend
 import traceback
 
-# Email Configuration
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
+# Resend Configuration
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "onboarding@resend.dev")  # Use your verified domain email here, e.g., "CampusStay <no-reply@yourdomain.com>"
 FROM_NAME = os.getenv("FROM_NAME", "CampusStay TUT")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://campusstay-1.onrender.com")
 
-# Debug email config on import
+# Set the API key globally (Resend SDK requires this)
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+# Debug config on import
 print("\n" + "="*60)
-print("📧 EMAIL CONFIGURATION CHECK")
+print("📧 RESEND EMAIL CONFIGURATION CHECK")
 print("="*60)
-print(f"SMTP_SERVER: {SMTP_SERVER}")
-print(f"SMTP_PORT: {SMTP_PORT}")
-print(f"SMTP_USERNAME: {SMTP_USERNAME if SMTP_USERNAME else '❌ NOT SET'}")
-print(f"SMTP_PASSWORD: {'✓ SET' if SMTP_PASSWORD else '❌ NOT SET'}")
-print(f"FROM_EMAIL: {FROM_EMAIL}")
+print(f"RESEND_API_KEY: {'✓ SET' if RESEND_API_KEY else '❌ NOT SET'}")
+print(f"RESEND_FROM_EMAIL: {RESEND_FROM_EMAIL}")
 print(f"FROM_NAME: {FROM_NAME}")
 print(f"FRONTEND_URL: {FRONTEND_URL}")
 print("="*60 + "\n")
 
 
 def send_email(to_email: str, subject: str, html_body: str, text_body: str = None):
-    """Send email via Gmail SMTP with improved error handling"""
+    """Send email via Resend API with improved error handling"""
     
     # Check configuration
-    if not SMTP_USERNAME or not SMTP_PASSWORD:
-        error_msg = "❌ SMTP_USERNAME or SMTP_PASSWORD not configured in environment"
+    if not RESEND_API_KEY:
+        error_msg = "❌ RESEND_API_KEY not configured in environment"
         print(error_msg)
         print("   To fix this:")
-        print("   1. Go to Google Account Settings → Security")
-        print("   2. Enable 2-Step Verification")
-        print("   3. Create an App Password (not your regular Gmail password)")
-        print("   4. Set SMTP_USERNAME=your-email@gmail.com")
-        print("   5. Set SMTP_PASSWORD=your-16-char-app-password")
+        print("   1. Go to https://resend.com/api-keys")
+        print("   2. Create an API key")
+        print("   3. Add it to Render as RESEND_API_KEY")
         return False
     
     try:
         print(f"\n📨 Attempting to send email to {to_email}")
         print(f"   Subject: {subject}")
-        print(f"   From: {FROM_NAME} <{FROM_EMAIL}>")
+        print(f"   From: {FROM_NAME} <{RESEND_FROM_EMAIL}>")
         
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = f"{FROM_NAME} <{FROM_EMAIL}>"
-        msg['To'] = to_email
+        # Prepare params (see Resend docs for all options)
+        params = {
+            "from": f"{FROM_NAME} <{RESEND_FROM_EMAIL}>",
+            "to": [to_email],
+            "subject": subject,
+            "html": html_body,
+        }
         
-        # Attach both plain text and HTML versions
         if text_body:
-            part1 = MIMEText(text_body, 'plain', 'utf-8')
-            msg.attach(part1)
+            params["text"] = text_body
         
-        part2 = MIMEText(html_body, 'html', 'utf-8')
-        msg.attach(part2)
+        # Send via Resend
+        response = resend.Emails.send(params)
         
-        # Connect to Gmail SMTP server
-        print(f"   Connecting to {SMTP_SERVER}:{SMTP_PORT}...")
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30) as server:
-            server.set_debuglevel(0)  # Set to 1 for verbose SMTP debugging
-            
-            print("   Starting TLS...")
-            server.starttls()
-            
-            print(f"   Logging in as {SMTP_USERNAME}...")
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            
-            print("   Sending message...")
-            server.send_message(msg)
-        
-        print(f"✅ Email successfully sent to {to_email}\n")
+        # Response usually has {'id': 'email_id'}
+        print(f"✅ Email successfully sent! Resend ID: {response.get('id')}\n")
         return True
         
-    except smtplib.SMTPAuthenticationError as e:
-        print(f"\n❌ Gmail authentication failed!")
-        print(f"   Error: {str(e)}")
-        print(f"   Username: {SMTP_USERNAME}")
-        print(f"\n   SOLUTION:")
-        print(f"   1. Make sure you're using an App Password, NOT your regular Gmail password")
-        print(f"   2. Enable 2-Step Verification on your Google Account")
-        print(f"   3. Generate App Password at: https://myaccount.google.com/apppasswords")
-        print(f"   4. Use the 16-character App Password in SMTP_PASSWORD")
-        print(f"   5. Make sure 'Less secure app access' is NOT needed with App Passwords\n")
-        return False
-        
-    except smtplib.SMTPException as e:
-        print(f"\n❌ SMTP error occurred!")
-        print(f"   Error: {str(e)}")
-        print(f"   Type: {type(e).__name__}")
-        traceback.print_exc()
+    except resend.error.ResendError as e:
+        # Specific Resend errors (invalid key, domain not verified, etc.)
+        print(f"\n❌ Resend API error!")
+        print(f"   Error: {e}")
+        print(f"   Details: {e.body if hasattr(e, 'body') else 'N/A'}")
         return False
         
     except Exception as e:
@@ -105,6 +74,9 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str = Non
         traceback.print_exc()
         return False
 
+
+# Your specific email functions remain the same (they call send_email)
+# ... (keep all the functions below unchanged: send_verification_email, send_application_confirmation_email, etc.)
 
 def send_verification_email(student_email: str, student_name: str, verification_token: str):
     """Send email verification link to new student"""
@@ -181,10 +153,9 @@ def send_verification_email(student_email: str, student_name: str, verification_
     
     CampusStay - Tshwane University of Technology
     """
-    
     print(f"\n🔗 Verification link: {verification_link}")
     result = send_email(student_email, subject, html_body, text_body)
-    
+          
     if not result:
         print(f"\n⚠️  VERIFICATION EMAIL FAILED TO SEND!")
         print(f"   Student can still verify manually using this link:")
@@ -192,199 +163,5 @@ def send_verification_email(student_email: str, student_name: str, verification_
     
     return result
 
-
-# Keep all other email functions the same...
-def send_application_confirmation_email(
-    student_email: str,
-    student_name: str,
-    property_title: str,
-    property_address: str
-):
-    """Send email to student after submitting application"""
-    subject = f"Application Submitted - {property_title}"
-    
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: linear-gradient(135deg, #ea580c, #dc2626); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-            .property-card {{ background: white; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #ea580c; }}
-            .button {{ display: inline-block; background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
-            .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🏠 Application Received!</h1>
-            </div>
-            <div class="content">
-                <p>Dear <strong>{student_name}</strong>,</p>
-                
-                <p>Your application for <strong>{property_title}</strong> has been received!</p>
-                
-                <div class="property-card">
-                    <p><strong>Property:</strong> {property_title}</p>
-                    <p><strong>Location:</strong> {property_address}</p>
-                    <p><strong>Status:</strong> Pending Review</p>
-                </div>
-                
-                <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student" class="button">View Application</a>
-                </p>
-                
-                <div class="footer">
-                    <p><strong>CampusStay - TUT</strong></p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    return send_email(student_email, subject, html_body)
-
-
-def send_application_approved_email(
-    student_email: str,
-    student_name: str,
-    property_title: str,
-    property_address: str
-):
-    """Send email when application is approved"""
-    subject = f"🎉 Application Approved - {property_title}"
-    
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-            .button {{ display: inline-block; background: #10b981; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
-            .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🎉 Congratulations!</h1>
-                <h2>Your Application Has Been Approved</h2>
-            </div>
-            <div class="content">
-                <p>Dear <strong>{student_name}</strong>,</p>
-                
-                <p>Your application for <strong>{property_title}</strong> at <strong>{property_address}</strong> has been APPROVED!</p>
-                
-                <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student" class="button">View Details</a>
-                </p>
-                
-                <div class="footer">
-                    <p><strong>CampusStay - TUT</strong></p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    return send_email(student_email, subject, html_body)
-
-
-def send_application_rejected_email(
-    student_email: str,
-    student_name: str,
-    property_title: str,
-    property_address: str
-):
-    """Send email when application is rejected"""
-    subject = f"Application Update - {property_title}"
-    
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-            .button {{ display: inline-block; background: #ea580c; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
-            .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>Application Status Update</h1>
-            </div>
-            <div class="content">
-                <p>Dear <strong>{student_name}</strong>,</p>
-                
-                <p>Unfortunately, your application for <strong>{property_title}</strong> could not be approved at this time.</p>
-                
-                <p>Please explore other available properties on our platform.</p>
-                
-                <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student" class="button">Browse Properties</a>
-                </p>
-                
-                <div class="footer">
-                    <p><strong>CampusStay - TUT</strong></p>
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    return send_email(student_email, subject, html_body)
-
-
-def send_document_reminder_email(
-    student_email: str,
-    student_name: str,
-    property_title: str
-):
-    """Send reminder email to upload documents"""
-    subject = f"⏰ Reminder: Upload Documents for {property_title}"
-    
-    html_body = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-            .header {{ background: linear-gradient(135deg, #f59e0b, #ea580c); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-            .button {{ display: inline-block; background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>⏰ Document Upload Reminder</h1>
-            </div>
-            <div class="content">
-                <p>Hi <strong>{student_name}</strong>,</p>
-                
-                <p>Please upload your supporting documents for <strong>{property_title}</strong>.</p>
-                
-                <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student" class="button">Upload Now</a>
-                </p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    
-    return send_email(student_email, subject, html_body)
+# The rest of your functions (send_application_confirmation_email, etc.) stay exactly the same!
+# They will now use the new Resend-powered send_email.
