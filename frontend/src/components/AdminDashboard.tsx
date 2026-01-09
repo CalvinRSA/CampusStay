@@ -147,7 +147,7 @@ export default function AdminDashboard() {
     removedImages: [] as string[],
   });
 
-const API = 'https://campusstay-production.up.railway.app/admin';
+const API = 'https://campusstay-backend.onrender.com/admin';
 
   const showNotification = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     const id = Date.now();
