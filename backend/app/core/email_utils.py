@@ -42,7 +42,6 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str = Non
         print(f"   Subject: {subject}")
         print(f"   From: {FROM_NAME} <{RESEND_FROM_EMAIL}>")
         
-        # Prepare params (see Resend docs for all options)
         params = {
             "from": f"{FROM_NAME} <{RESEND_FROM_EMAIL}>",
             "to": [to_email],
@@ -53,27 +52,18 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str = Non
         if text_body:
             params["text"] = text_body
         
-        # Send via Resend
         response = resend.Emails.send(params)
         
-        # Response usually has {'id': 'email_id'}
+        # Success: response is a dict with 'id'
         print(f"✅ Email successfully sent! Resend ID: {response.get('id')}\n")
         return True
         
-    except resend.error.ResendError as e:
-        # Specific Resend errors (invalid key, domain not verified, etc.)
-        print(f"\n❌ Resend API error!")
-        print(f"   Error: {e}")
-        print(f"   Details: {e.body if hasattr(e, 'body') else 'N/A'}")
-        return False
-        
-    except Exception as e:
-        print(f"\n❌ Unexpected error sending email!")
+    except Exception as e:  # Broad catch – works with current SDK v2+
+        print(f"\n❌ Failed to send email via Resend!")
         print(f"   Error: {str(e)}")
         print(f"   Type: {type(e).__name__}")
-        traceback.print_exc()
+        traceback.print_exc()  # Prints full stack trace for better debugging
         return False
-
 
 # Your specific email functions remain the same (they call send_email)
 # ... (keep all the functions below unchanged: send_verification_email, send_application_confirmation_email, etc.)
