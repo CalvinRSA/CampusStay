@@ -1,5 +1,5 @@
 // src/utils/api.ts
-export const API_BASE = 'https://campusstay-production.up.railway.app';
+export const API_BASE = 'https://campusstay-backend.onrender.com';
 
 export async function fetcher(endpoint: string, options: RequestInit = {}) {
   const token = localStorage.getItem('access_token');
