@@ -18,7 +18,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://*.onrender.com",
+        "https://campusstay-1.onrender.com",
+        "http://campusstay-1.onrender.com",
         "http://localhost:5173",  # For local development
         "http://localhost:3000",
         "*"
