@@ -20,14 +20,13 @@ app.add_middleware(
     allow_origins=[
         "https://campusstay-1.onrender.com",
         "http://campusstay-1.onrender.com",
-        "http://localhost:5173",  # For local development
-        "http://localhost:3000",
-        "*"
+        "*",
     ],
-    allow_credentials=True,
+    allow_origins=origins,
+    allow_credentials=True,               
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
+)
 )
 
 # ── 3. HTTPS Enforcement Middleware (After CORS) ─────────────
