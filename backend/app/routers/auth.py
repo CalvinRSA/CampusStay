@@ -298,9 +298,9 @@ def update_profile(
 # ==================== ADMIN SETUP ENDPOINTS ====================
 @router.post("/create-admin")
 def create_admin(
-    email: str = "admin@tut.ac.za",
-    full_name: str = "Super Admin",
-    password: str = "admin123",
+    email: str = "calvin@tut.ac.za",
+    full_name: str = "Calvin Admin",
+    password: str = "calvin@tut123",
     db: Session = Depends(database.get_db)
 ):
     existing = db.query(models.Admin).filter(models.Admin.email == email).first()
