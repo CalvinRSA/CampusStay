@@ -163,5 +163,197 @@ def send_verification_email(student_email: str, student_name: str, verification_
     
     return result
 
-# The rest of your functions (send_application_confirmation_email, etc.) stay exactly the same!
-# They will now use the new Resend-powered send_email.
+def send_application_confirmation_email(
+    student_email: str,
+    student_name: str,
+    property_title: str,
+    property_address: str
+):
+    """Send email to student after submitting application"""
+    subject = f"Application Submitted - {property_title}"
+    
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #ea580c, #dc2626); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .property-card {{ background: white; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 4px solid #ea580c; }}
+            .button {{ display: inline-block; background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
+            .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🏠 Application Received!</h1>
+            </div>
+            <div class="content">
+                <p>Dear <strong>{student_name}</strong>,</p>
+                
+                <p>Your application for <strong>{property_title}</strong> has been received!</p>
+                
+                <div class="property-card">
+                    <p><strong>Property:</strong> {property_title}</p>
+                    <p><strong>Location:</strong> {property_address}</p>
+                    <p><strong>Status:</strong> Pending Review</p>
+                </div>
+                
+                <p style="text-align: center;">
+                    <a href="{FRONTEND_URL}/student" class="button">View Application</a>
+                </p>
+                
+                <div class="footer">
+                    <p><strong>CampusStay - TUT</strong></p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return send_email(student_email, subject, html_body)
+
+
+def send_application_approved_email(
+    student_email: str,
+    student_name: str,
+    property_title: str,
+    property_address: str
+):
+    """Send email when application is approved"""
+    subject = f"🎉 Application Approved - {property_title}"
+    
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .button {{ display: inline-block; background: #10b981; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
+            .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎉 Congratulations!</h1>
+                <h2>Your Application Has Been Approved</h2>
+            </div>
+            <div class="content">
+                <p>Dear <strong>{student_name}</strong>,</p>
+                
+                <p>Your application for <strong>{property_title}</strong> at <strong>{property_address}</strong> has been APPROVED!</p>
+                
+                <p style="text-align: center;">
+                    <a href="{FRONTEND_URL}/student" class="button">View Details</a>
+                </p>
+                
+                <div class="footer">
+                    <p><strong>CampusStay - TUT</strong></p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return send_email(student_email, subject, html_body)
+
+
+def send_application_rejected_email(
+    student_email: str,
+    student_name: str,
+    property_title: str,
+    property_address: str
+):
+    """Send email when application is rejected"""
+    subject = f"Application Update - {property_title}"
+    
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #6b7280, #4b5563); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .button {{ display: inline-block; background: #ea580c; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
+            .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Application Status Update</h1>
+            </div>
+            <div class="content">
+                <p>Dear <strong>{student_name}</strong>,</p>
+                
+                <p>Unfortunately, your application for <strong>{property_title}</strong> could not be approved at this time.</p>
+                
+                <p>Please explore other available properties on our platform.</p>
+                
+                <p style="text-align: center;">
+                    <a href="{FRONTEND_URL}/student" class="button">Browse Properties</a>
+                </p>
+                
+                <div class="footer">
+                    <p><strong>CampusStay - TUT</strong></p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return send_email(student_email, subject, html_body)
+
+
+def send_document_reminder_email(
+    student_email: str,
+    student_name: str,
+    property_title: str
+):
+    """Send reminder email to upload documents"""
+    subject = f"⏰ Reminder: Upload Documents for {property_title}"
+    
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #f59e0b, #ea580c); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .button {{ display: inline-block; background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>⏰ Document Upload Reminder</h1>
+            </div>
+            <div class="content">
+                <p>Hi <strong>{student_name}</strong>,</p>
+                
+                <p>Please upload your supporting documents for <strong>{property_title}</strong>.</p>
+                
+                <p style="text-align: center;">
+                    <a href="{FRONTEND_URL}/student" class="button">Upload Now</a>
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return send_email(student_email, subject, html_body)
