@@ -154,7 +154,8 @@ export default function StudentsDashboard() {
     const [propsRes, appsRes, profRes] = await Promise.all([
       fetchWithAuth(`${API}/properties`),
       fetchWithAuth(`${API}/applications/my-applications`),
-      fetchWithAuth('https://campusstay-backend.onrender.com/auth/me'),  // ✅ Use /auth/me directly
+      fetchWithAuth('https://campusstay-backend.onrender.com/auth/me'),
+      fetchWithAuth('https://campusstay-backend.onrender.com/auth/update-profile'), // ✅ Use /auth/me directly
     ]);
 
       if (propsRes.ok) {
