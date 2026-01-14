@@ -18,8 +18,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://campusstay-1.onrender.com",
-        "http://campusstay-1.onrender.com",
+        "https://campusstay.co.za",
+        "http://campusstay.co.za",
         "*",
     ],
     allow_credentials=True,               
