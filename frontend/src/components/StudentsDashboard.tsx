@@ -376,7 +376,7 @@ export default function StudentsDashboard() {
         payload.new_password = editProfileForm.new_password;
       }
 
-      const res = await fetchWithAuth(`${API}/auth/update-profile`, {
+      const res = await fetchWithAuth('https://campusstay-backend.onrender.com/auth/update-profile'), {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
