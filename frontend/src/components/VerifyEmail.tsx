@@ -1,4 +1,4 @@
-// src/pages/VerifyEmail.tsx - FINAL WORKING VERSION
+// src/components/VerifyEmail.tsx - FINAL WORKING VERSION
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, Home, AlertTriangle } from 'lucide-react';

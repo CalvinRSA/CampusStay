@@ -11,7 +11,7 @@ import {
 import LandingPage from './components/LandingPage';
 import AdminDashboard from './components/AdminDashboard';
 import StudentsDashboard from './components/StudentsDashboard';
-import VerifyEmail from './pages/VerifyEmail';
+import VerifyEmail from './components/VerifyEmail';
 
 interface User {
   role: 'admin' | 'student';
