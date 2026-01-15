@@ -64,7 +64,7 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      await fetcher('/auth/reset-password', {
+      await fetcher('https://campusstay-backend.onrender.com/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
