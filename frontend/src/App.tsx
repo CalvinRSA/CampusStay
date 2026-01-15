@@ -1,4 +1,4 @@
-// src/App.tsx
+// src/App.tsx - FIXED with reset-password route
 import type { JSX } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -12,6 +12,7 @@ import LandingPage from './components/LandingPage';
 import AdminDashboard from './components/AdminDashboard';
 import StudentsDashboard from './components/StudentsDashboard';
 import VerifyEmail from './components/VerifyEmail';
+import ResetPassword from './components/ResetPassword';  // ADD THIS IMPORT
 
 interface User {
   role: 'admin' | 'student';
@@ -118,8 +119,9 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
+        {/* Public Routes - THESE MUST COME FIRST */}
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />  {/* ADD THIS LINE */}
         <Route path="/login" element={<LandingPage />} />
 
         {/* Protected Student Dashboard */}
