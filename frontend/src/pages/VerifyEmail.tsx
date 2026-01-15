@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, Home } from 'lucide-react';
-import { fetcher } from '../utils/api';
+import { API_BASE } from '../utils/api';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -11,33 +11,64 @@ export default function VerifyEmail() {
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [debugInfo, setDebugInfo] = useState('');
 
   useEffect(() => {
+    console.log('=== EMAIL VERIFICATION STARTED ===');
+    console.log('Token from URL:', token);
+    console.log('Full URL:', window.location.href);
+
     if (!token) {
+      console.error('No token found in URL');
       setStatus('error');
       setMessage('Invalid verification link. No token provided.');
+      setDebugInfo('Token missing from URL parameters');
       return;
     }
 
     const verify = async () => {
       try {
-        const res = await fetcher(`/auth/verify-email?token=${encodeURIComponent(token)}`);
-        
-        // Check for success message
-        if (res.message && (res.message.includes('verified') || res.message.includes('successful'))) {
+        console.log('Making verification request...');
+        const url = `${API_BASE}/auth/verify-email?token=${encodeURIComponent(token)}`;
+        console.log('Request URL:', url);
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+
+        const data = await response.json();
+        console.log('Response data:', data);
+
+        if (!response.ok) {
+          throw new Error(data.detail || data.message || `Server returned ${response.status}`);
+        }
+
+        // Check for success
+        if (data.message && (data.message.includes('verified') || data.message.includes('successful'))) {
+          console.log('✅ Verification successful!');
           setStatus('success');
-          setMessage('Email verified successfully! You can now log in.');
+          setMessage(data.message);
           
-          // Redirect to home/login page after 3 seconds
+          // Redirect to home page after 3 seconds
           setTimeout(() => {
+            console.log('Redirecting to home page...');
             navigate('/');
           }, 3000);
         } else {
-          throw new Error(res.detail || 'Verification failed');
+          throw new Error('Unexpected response from server');
         }
+
       } catch (err: any) {
+        console.error('❌ Verification failed:', err);
         setStatus('error');
-        setMessage(err.message || 'Verification link has expired or is invalid. Please request a new verification email.');
+        setMessage(err.message || 'Verification failed. The link may have expired.');
+        setDebugInfo(`Error: ${err.toString()}`);
       }
     };
 
@@ -87,6 +118,14 @@ export default function VerifyEmail() {
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-4">Verification Failed</h2>
               <p className="text-lg text-gray-700 mb-6">{message}</p>
+              
+              {/* Debug Info */}
+              {debugInfo && (
+                <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left">
+                  <p className="text-xs text-gray-600 font-mono break-all">{debugInfo}</p>
+                </div>
+              )}
+              
               <button
                 onClick={() => navigate('/')}
                 className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2 mx-auto"
@@ -99,7 +138,7 @@ export default function VerifyEmail() {
 
         {/* Footer */}
         <p className="text-center text-gray-500 text-sm mt-8">
-          © 2025 CampusStay - For Tshwane University of Technology
+          © 2025 CampusStay - Tshwane University of Technology
         </p>
       </div>
     </div>

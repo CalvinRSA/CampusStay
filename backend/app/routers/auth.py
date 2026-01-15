@@ -1,7 +1,7 @@
-# app/routers/auth.py
+# app/routers/auth.py - VERIFICATION ENDPOINT FIXED
 import os
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
@@ -72,7 +72,7 @@ def register_student(
     db.commit()
     db.refresh(db_student)
 
-    # SEND VERIFICATION EMAIL VIA GMAIL SMTP
+    # SEND VERIFICATION EMAIL
     try:
         email_sent = send_verification_email(
             student_email=db_student.email,
@@ -82,53 +82,118 @@ def register_student(
         if email_sent:
             print(f"✅ Verification email sent to {db_student.email}")
         else:
-            print(f"⚠️ Email not sent (check SMTP_USERNAME and SMTP_PASSWORD in .env)")
+            print(f"⚠️ Email not sent (check email configuration)")
     except Exception as e:
         print(f"❌ Email failed: {e}")
 
     return {"message": "Registered! Check your email to verify your account."}
 
 
-# ==================== VERIFY EMAIL ENDPOINT ====================
+# ==================== VERIFY EMAIL ENDPOINT - IMPROVED ====================
 @router.get("/verify-email")
-def verify_email(token: str, db: Session = Depends(database.get_db)):
+def verify_email(
+    token: str = Query(..., description="Email verification token"),
+    db: Session = Depends(database.get_db)
+):
+    """
+    Verify student email address using the token sent via email
+    """
+    print(f"\n{'='*60}")
+    print(f"📧 EMAIL VERIFICATION REQUEST")
+    print(f"{'='*60}")
+    print(f"Token received: {token[:50]}..." if len(token) > 50 else f"Token received: {token}")
+    
     if not token:
+        print("❌ No token provided")
         raise HTTPException(status_code=400, detail="No token provided")
 
     try:
-        # Decode token
+        # Decode and verify token
+        print("🔓 Decoding token...")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
         email: str = payload.get("sub")
-        token_type = payload.get("type")
+        token_type: str = payload.get("type")
+        exp: int = payload.get("exp")
+        
+        print(f"📧 Email from token: {email}")
+        print(f"🔖 Token type: {token_type}")
+        print(f"⏰ Token expiry: {datetime.fromtimestamp(exp, tz=timezone.utc)}")
 
         # Must be email verification token
         if token_type != "email_verification":
+            print(f"❌ Invalid token type: {token_type}")
             raise HTTPException(status_code=400, detail="Invalid token type")
 
         # Find student
+        print(f"🔍 Looking up student with email: {email}")
         student = db.query(models.Student).filter(models.Student.email == email).first()
+        
         if not student:
+            print(f"❌ Student not found: {email}")
             raise HTTPException(status_code=404, detail="Student not found")
+        
+        print(f"✅ Student found: {student.full_name} (ID: {student.id})")
 
         # Already verified?
         if student.email_verified:
-            return {"message": "Email already verified. You can log in."}
+            print(f"ℹ️ Email already verified for: {email}")
+            return {
+                "message": "Email already verified. You can log in.",
+                "status": "already_verified"
+            }
 
-        # Token expired?
-        expires = payload.get("exp")
-        if datetime.now(timezone.utc) > datetime.fromtimestamp(expires, tz=timezone.utc):
-            raise HTTPException(status_code=400, detail="Verification link has expired")
+        # Check token expiration
+        current_time = datetime.now(timezone.utc)
+        token_expiry = datetime.fromtimestamp(exp, tz=timezone.utc)
+        
+        if current_time > token_expiry:
+            print(f"❌ Token expired. Current: {current_time}, Expiry: {token_expiry}")
+            raise HTTPException(
+                status_code=400, 
+                detail="Verification link has expired. Please request a new verification email."
+            )
+
+        # Verify token matches stored token
+        if student.verification_token != token:
+            print(f"❌ Token mismatch!")
+            print(f"   Stored token: {student.verification_token[:50] if student.verification_token else 'None'}...")
+            print(f"   Provided token: {token[:50]}...")
+            raise HTTPException(status_code=400, detail="Invalid verification token")
 
         # SUCCESS – Verify email
+        print(f"✅ Verifying email for: {email}")
         student.email_verified = True
         student.verification_token = None
         student.verification_token_expires = None
         db.commit()
+        
+        print(f"{'='*60}")
+        print(f"🎉 EMAIL SUCCESSFULLY VERIFIED!")
+        print(f"{'='*60}\n")
 
-        return {"message": "Email verified successfully! You can now log in and apply for accommodation."}
+        return {
+            "message": "Email verified successfully! You can now log in and apply for accommodation.",
+            "status": "success",
+            "email": email
+        }
 
-    except JWTError:
-        raise HTTPException(status_code=400, detail="Invalid or corrupted token")
+    except JWTError as e:
+        print(f"❌ JWT Error: {str(e)}")
+        print(f"{'='*60}\n")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid or corrupted verification token: {str(e)}"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Unexpected error: {str(e)}")
+        print(f"{'='*60}\n")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Verification failed: {str(e)}"
+        )
 
 
 # ==================== FORGOT PASSWORD ====================
@@ -230,7 +295,7 @@ def reset_password(
         raise HTTPException(status_code=400, detail="Invalid or corrupted token")
 
 
-# ==================== UNIFIED LOGIN (FIXED) ====================
+# ==================== UNIFIED LOGIN ====================
 @router.post("/login", response_model=schemas.Token)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
