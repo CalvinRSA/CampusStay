@@ -1,11 +1,12 @@
-# app/routers/auth.py - VERIFICATION ENDPOINT FIXED
+# app/routers/auth.py - COMPLETE WORKING VERSION
 import os
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from datetime import timedelta, datetime, timezone
+from pydantic import BaseModel
 
 from .. import models, schemas, database
 from ..core.security import create_access_token, verify_password, hash_password
@@ -21,6 +22,15 @@ if not SECRET_KEY:
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+
+# ── Pydantic Models ─────
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 
 @router.get("/test")
@@ -89,15 +99,14 @@ def register_student(
     return {"message": "Registered! Check your email to verify your account."}
 
 
-# ==================== VERIFY EMAIL ENDPOINT - IMPROVED ====================
+# ==================== VERIFY EMAIL ENDPOINT ====================
 @router.get("/verify-email")
 def verify_email(
     token: str = Query(..., description="Email verification token"),
     db: Session = Depends(database.get_db)
 ):
-    """
-    Verify student email address using the token sent via email
-    """
+    """Verify student email address using the token sent via email"""
+    
     print(f"\n{'='*60}")
     print(f"📧 EMAIL VERIFICATION REQUEST")
     print(f"{'='*60}")
@@ -157,8 +166,6 @@ def verify_email(
         # Verify token matches stored token
         if student.verification_token != token:
             print(f"❌ Token mismatch!")
-            print(f"   Stored token: {student.verification_token[:50] if student.verification_token else 'None'}...")
-            print(f"   Provided token: {token[:50]}...")
             raise HTTPException(status_code=400, detail="Invalid verification token")
 
         # SUCCESS – Verify email
@@ -180,35 +187,35 @@ def verify_email(
 
     except JWTError as e:
         print(f"❌ JWT Error: {str(e)}")
-        print(f"{'='*60}\n")
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid or corrupted verification token: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid or corrupted verification token")
     except HTTPException:
         raise
     except Exception as e:
         print(f"❌ Unexpected error: {str(e)}")
-        print(f"{'='*60}\n")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Verification failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
 
 
-# ==================== FORGOT PASSWORD ====================
+# ==================== FORGOT PASSWORD - FIXED ====================
 @router.post("/forgot-password")
 def forgot_password(
-    email: str,
+    request: ForgotPasswordRequest,
     db: Session = Depends(database.get_db),
 ):
     """Send password reset email to student"""
+    
+    email = request.email
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    print(f"\n📧 Password reset requested for: {email}")
     
     # Find student by email
     student = db.query(models.Student).filter(models.Student.email == email).first()
     
     # Don't reveal if email exists or not (security best practice)
     if not student:
+        print(f"⚠️ No student found with email: {email}")
         return {"message": "If an account with that email exists, a password reset link has been sent."}
     
     # Generate password reset token (valid for 1 hour)
@@ -244,14 +251,16 @@ def forgot_password(
     return {"message": "If an account with that email exists, a password reset link has been sent."}
 
 
-# ==================== RESET PASSWORD ====================
+# ==================== RESET PASSWORD - FIXED ====================
 @router.post("/reset-password")
 def reset_password(
-    token: str,
-    new_password: str,
+    request: ResetPasswordRequest,
     db: Session = Depends(database.get_db),
 ):
     """Reset password using valid token"""
+    
+    token = request.token
+    new_password = request.new_password
     
     if not token:
         raise HTTPException(status_code=400, detail="No token provided")
@@ -288,6 +297,8 @@ def reset_password(
         student.password_reset_token = None
         student.password_reset_token_expires = None
         db.commit()
+        
+        print(f"✅ Password reset successful for: {email}")
         
         return {"message": "Password has been reset successfully! You can now log in with your new password."}
         
