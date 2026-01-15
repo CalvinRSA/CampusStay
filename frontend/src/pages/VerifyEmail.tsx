@@ -1,8 +1,9 @@
-// src/pages/VerifyEmail.tsx
+// src/pages/VerifyEmail.tsx - FINAL WORKING VERSION
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Loader2, Home } from 'lucide-react';
-import { API_BASE } from '../utils/api';
+import { CheckCircle, XCircle, Loader2, Home, AlertTriangle } from 'lucide-react';
+
+const API_BASE = 'https://campusstay-backend.onrender.com';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -11,73 +12,104 @@ export default function VerifyEmail() {
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
-  const [debugInfo, setDebugInfo] = useState('');
+  const [details, setDetails] = useState<string[]>([]);
 
   useEffect(() => {
-    console.log('=== EMAIL VERIFICATION STARTED ===');
-    console.log('Token from URL:', token);
-    console.log('Full URL:', window.location.href);
+    const logStep = (step: string) => {
+      console.log(`[VERIFY] ${step}`);
+      setDetails(prev => [...prev, step]);
+    };
+
+    logStep('=== EMAIL VERIFICATION STARTED ===');
+    logStep(`Token present: ${token ? 'YES' : 'NO'}`);
+    
+    if (token) {
+      logStep(`Token length: ${token.length}`);
+      logStep(`Token preview: ${token.substring(0, 50)}...`);
+    }
 
     if (!token) {
-      console.error('No token found in URL');
+      logStep('❌ ERROR: No token in URL');
       setStatus('error');
       setMessage('Invalid verification link. No token provided.');
-      setDebugInfo('Token missing from URL parameters');
       return;
     }
 
-    const verify = async () => {
+    const verifyEmail = async () => {
       try {
-        console.log('Making verification request...');
+        logStep('📡 Preparing verification request');
+        
         const url = `${API_BASE}/auth/verify-email?token=${encodeURIComponent(token)}`;
-        console.log('Request URL:', url);
+        logStep(`Request URL: ${API_BASE}/auth/verify-email?token=...`);
 
+        logStep('Sending request...');
         const response = await fetch(url, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
           },
         });
 
-        console.log('Response status:', response.status);
-        console.log('Response ok:', response.ok);
+        logStep(`Response status: ${response.status}`);
+        logStep(`Response OK: ${response.ok}`);
 
-        const data = await response.json();
-        console.log('Response data:', data);
+        const responseText = await response.text();
+        logStep(`Response received (${responseText.length} chars)`);
+
+        let data;
+        try {
+          data = JSON.parse(responseText);
+          logStep('Response parsed successfully');
+          logStep(`Response message: ${data.message}`);
+          logStep(`Response status: ${data.status}`);
+        } catch (e) {
+          logStep('❌ ERROR: Failed to parse JSON response');
+          logStep(`Raw response: ${responseText.substring(0, 200)}`);
+          throw new Error('Server returned invalid response');
+        }
 
         if (!response.ok) {
-          throw new Error(data.detail || data.message || `Server returned ${response.status}`);
+          logStep(`❌ ERROR: HTTP ${response.status}`);
+          logStep(`Error detail: ${data.detail || 'No detail provided'}`);
+          throw new Error(data.detail || data.message || `Server error (${response.status})`);
         }
 
-        // Check for success
-        if (data.message && (data.message.includes('verified') || data.message.includes('successful'))) {
-          console.log('✅ Verification successful!');
+        const messageText = data.message || '';
+        const isSuccess = 
+          messageText.toLowerCase().includes('verified') || 
+          messageText.toLowerCase().includes('successful') ||
+          data.status === 'success' ||
+          data.status === 'already_verified';
+
+        if (isSuccess) {
+          logStep('✅ SUCCESS: Email verified!');
           setStatus('success');
-          setMessage(data.message);
+          setMessage(messageText || 'Email verified successfully!');
           
-          // Redirect to home page after 3 seconds
+          logStep('Redirecting in 3 seconds...');
           setTimeout(() => {
-            console.log('Redirecting to home page...');
-            navigate('/');
+            logStep('Redirecting now...');
+            navigate('/', { replace: true });
           }, 3000);
         } else {
-          throw new Error('Unexpected response from server');
+          logStep('❌ ERROR: Unexpected response format');
+          throw new Error('Verification failed with unexpected response');
         }
 
-      } catch (err: any) {
-        console.error('❌ Verification failed:', err);
+      } catch (error: any) {
+        logStep(`❌ VERIFICATION FAILED: ${error.message}`);
         setStatus('error');
-        setMessage(err.message || 'Verification failed. The link may have expired.');
-        setDebugInfo(`Error: ${err.toString()}`);
+        setMessage(error.message || 'Verification failed');
       }
     };
 
-    verify();
+    verifyEmail();
   }, [token, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+      <div className="max-w-2xl w-full">
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-2 mb-4">
@@ -90,8 +122,8 @@ export default function VerifyEmail() {
           </div>
         </div>
 
-        {/* Verification Status Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-10 text-center">
+        {/* Main Status Card */}
+        <div className="bg-white rounded-2xl shadow-2xl p-10 text-center mb-4">
           {status === 'loading' && (
             <>
               <Loader2 className="w-16 h-16 animate-spin text-orange-600 mx-auto mb-6" />
@@ -106,8 +138,21 @@ export default function VerifyEmail() {
                 <CheckCircle className="w-12 h-12 text-green-600" />
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-4">Email Verified! 🎉</h2>
-              <p className="text-lg text-gray-700 mb-4">{message}</p>
-              <p className="text-sm text-gray-500">Redirecting to login page...</p>
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-green-800 mb-2">
+                  <strong>✓ Success!</strong> Your email has been verified.
+                </p>
+                <p className="text-sm text-green-700">
+                  {message}
+                </p>
+              </div>
+              <p className="text-lg text-gray-700 mb-4">
+                You can now log in and start applying for accommodation.
+              </p>
+              <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Redirecting to login page...</span>
+              </div>
             </>
           )}
           
@@ -117,15 +162,20 @@ export default function VerifyEmail() {
                 <XCircle className="w-12 h-12 text-red-600" />
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-4">Verification Failed</h2>
-              <p className="text-lg text-gray-700 mb-6">{message}</p>
-              
-              {/* Debug Info */}
-              {debugInfo && (
-                <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left">
-                  <p className="text-xs text-gray-600 font-mono break-all">{debugInfo}</p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-left">
+                <p className="text-sm text-red-800 mb-3">
+                  <strong>Error:</strong> {message}
+                </p>
+                <div className="text-xs text-red-700 space-y-1">
+                  <p><strong>Common reasons:</strong></p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>Verification link has expired (older than 24 hours)</li>
+                    <li>Email already verified - try logging in</li>
+                    <li>Invalid or corrupted token</li>
+                    <li>Network connection issue</li>
+                  </ul>
                 </div>
-              )}
-              
+              </div>
               <button
                 onClick={() => navigate('/')}
                 className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2 mx-auto"
@@ -135,6 +185,21 @@ export default function VerifyEmail() {
             </>
           )}
         </div>
+
+        {/* Debug Info (Collapsible) */}
+        <details className="bg-gray-100 rounded-lg p-4 text-xs">
+          <summary className="cursor-pointer font-medium text-gray-700 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" />
+            Technical Details (for debugging)
+          </summary>
+          <div className="mt-4 space-y-1 font-mono text-gray-600 max-h-64 overflow-y-auto">
+            {details.map((detail, idx) => (
+              <div key={idx} className="border-b border-gray-200 py-1">
+                {detail}
+              </div>
+            ))}
+          </div>
+        </details>
 
         {/* Footer */}
         <p className="text-center text-gray-500 text-sm mt-8">
