@@ -1,7 +1,7 @@
-// src/components/VerifyEmail.tsx - FINAL WORKING VERSION
+// src/components/VerifyEmail.tsx - FIXED REDIRECT VERSION
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Loader2, Home, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Home, AlertTriangle, LogIn } from 'lucide-react';
 
 const API_BASE = 'https://campusstay-backend.onrender.com';
 
@@ -13,6 +13,7 @@ export default function VerifyEmail() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [details, setDetails] = useState<string[]>([]);
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     const logStep = (step: string) => {
@@ -87,11 +88,20 @@ export default function VerifyEmail() {
           setStatus('success');
           setMessage(messageText || 'Email verified successfully!');
           
-          logStep('Redirecting in 3 seconds...');
-          setTimeout(() => {
-            logStep('Redirecting now...');
-            navigate('/', { replace: true });
-          }, 3000);
+          // Start countdown
+          logStep('Starting 3-second countdown before redirect...');
+          const countdownInterval = setInterval(() => {
+            setCountdown(prev => {
+              if (prev <= 1) {
+                clearInterval(countdownInterval);
+                logStep('Redirecting to login page now...');
+                navigate('/', { replace: true });
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+
         } else {
           logStep('❌ ERROR: Unexpected response format');
           throw new Error('Verification failed with unexpected response');
@@ -146,13 +156,27 @@ export default function VerifyEmail() {
                   {message}
                 </p>
               </div>
-              <p className="text-lg text-gray-700 mb-4">
+              <p className="text-lg text-gray-700 mb-6">
                 You can now log in and start applying for accommodation.
               </p>
-              <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Redirecting to login page...</span>
+              
+              {/* Countdown Display */}
+              <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-center space-x-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-orange-600" />
+                  <span className="text-gray-700 font-medium">
+                    Redirecting to login in <span className="text-2xl font-bold text-orange-600">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
+                  </span>
+                </div>
               </div>
+
+              {/* Manual redirect button */}
+              <button
+                onClick={() => navigate('/', { replace: true })}
+                className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2 mx-auto"
+              >
+                <LogIn className="w-5 h-5" /> Go to Login Now
+              </button>
             </>
           )}
           
@@ -176,12 +200,14 @@ export default function VerifyEmail() {
                   </ul>
                 </div>
               </div>
-              <button
-                onClick={() => navigate('/')}
-                className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2 mx-auto"
-              >
-                <Home className="w-5 h-5" /> Back to Home
-              </button>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => navigate('/', { replace: true })}
+                  className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2"
+                >
+                  <LogIn className="w-5 h-5" /> Try Login Anyway
+                </button>
+              </div>
             </>
           )}
         </div>

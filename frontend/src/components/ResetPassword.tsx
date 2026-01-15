@@ -1,9 +1,8 @@
+// src/components/ResetPassword.tsx - FIXED REDIRECT VERSION
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Home, Lock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Home, Lock, CheckCircle, AlertCircle, LogIn, Loader2 } from 'lucide-react';
 import { fetcher } from '../utils/api';
-
-
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -15,12 +14,32 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     if (!token) {
       setError('Invalid or missing reset token');
     }
   }, [token]);
+
+  // Countdown timer after successful reset
+  useEffect(() => {
+    if (success) {
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            console.log('Redirecting to login page...');
+            navigate('/', { replace: true });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(countdownInterval);
+    }
+  }, [success, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,11 +74,6 @@ export default function ResetPassword() {
       });
 
       setSuccess(true);
-      
-      // Redirect to home page after 3 seconds
-      setTimeout(() => {
-        navigate('/');
-      }, 3000);
 
     } catch (err: any) {
       setError(err.message || 'Failed to reset password. The link may have expired.');
@@ -90,11 +104,28 @@ export default function ResetPassword() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">Password Reset Successful!</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Password Reset Successful! 🎉</h2>
               <p className="text-gray-600 mb-6">
                 Your password has been reset successfully. You can now log in with your new password.
               </p>
-              <p className="text-sm text-gray-500">Redirecting to login page...</p>
+              
+              {/* Countdown Display */}
+              <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-center space-x-3">
+                  <Loader2 className="w-5 h-5 animate-spin text-orange-600" />
+                  <span className="text-gray-700 font-medium">
+                    Redirecting to login in <span className="text-2xl font-bold text-orange-600">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
+                  </span>
+                </div>
+              </div>
+
+              {/* Manual redirect button */}
+              <button
+                onClick={() => navigate('/', { replace: true })}
+                className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2 mx-auto"
+              >
+                <LogIn className="w-5 h-5" /> Go to Login Now
+              </button>
             </div>
           </div>
         ) : (
@@ -169,10 +200,10 @@ export default function ResetPassword() {
 
             <div className="mt-6 text-center">
               <button
-                onClick={() => navigate('/')}
-                className="text-orange-600 hover:text-orange-700 font-medium text-sm"
+                onClick={() => navigate('/', { replace: true })}
+                className="text-orange-600 hover:text-orange-700 font-medium text-sm flex items-center gap-2 mx-auto"
               >
-                Back to Login
+                <LogIn className="w-4 h-4" /> Back to Login
               </button>
             </div>
           </div>
