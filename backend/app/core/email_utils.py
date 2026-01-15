@@ -1,13 +1,14 @@
-# app/core/email_utils.py - RESEND VERSION
+# app/core/email_utils.py - FIXED VERSION
 import os
 import resend
 import traceback
+from urllib.parse import quote
 
 # Resend Configuration
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@campusstay.co.za")
 FROM_NAME = os.getenv("FROM_NAME", "CampusStay TUT")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://campusstay.co.za")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://campusstay.co.za").rstrip('/')  # Remove trailing slash
 
 # Set the API key globally (Resend SDK requires this)
 if RESEND_API_KEY:
@@ -68,27 +69,35 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str = Non
 
 def send_verification_email(student_email: str, student_name: str, verification_token: str):
     """Send email verification link to new student"""
-    verification_link = f"{FRONTEND_URL}/verify-email?token={verification_token}"
+    
+    # FIXED: Properly encode the token to handle special characters
+    encoded_token = quote(verification_token, safe='')
+    verification_link = f"{FRONTEND_URL}/verify-email?token={encoded_token}"
+    
     subject = "Verify Your CampusStay Account"
     
     html_body = f"""
     <!DOCTYPE html>
     <html>
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
             .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
             .header {{ background: linear-gradient(135deg, #ea580c, #dc2626); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
             .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-            .button {{ display: inline-block; background: #ea580c; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }}
+            .button {{ display: inline-block; background: #ea580c; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }}
+            .button:hover {{ background: #dc2626; }}
             .alert {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }}
             .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
+            .link-text {{ word-break: break-all; color: #6b7280; font-size: 14px; background: #f3f4f6; padding: 10px; border-radius: 4px; margin-top: 10px; }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h1>✉️ Welcome to CampusStay!</h1>
+                <h1 style="margin: 0;">✉️ Welcome to CampusStay!</h1>
             </div>
             <div class="content">
                 <p>Dear <strong>{student_name}</strong>,</p>
@@ -98,7 +107,7 @@ def send_verification_email(student_email: str, student_name: str, verification_
                 <p>To complete your registration and start applying for accommodation, please verify your email address by clicking the button below:</p>
                 
                 <p style="text-align: center;">
-                    <a href="{verification_link}" class="button">Verify My Email</a>
+                    <a href="{verification_link}" class="button" style="color: white;">Verify My Email</a>
                 </p>
                 
                 <div class="alert">
@@ -106,7 +115,7 @@ def send_verification_email(student_email: str, student_name: str, verification_
                 </div>
                 
                 <p style="margin-top: 20px;">If the button doesn't work, copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #6b7280; font-size: 14px;">{verification_link}</p>
+                <div class="link-text">{verification_link}</div>
                 
                 <p style="margin-top: 30px;">Once verified, you'll be able to:</p>
                 <ul>
@@ -141,7 +150,10 @@ def send_verification_email(student_email: str, student_name: str, verification_
     
     CampusStay - Tshwane University of Technology
     """
-    print(f"\n🔗 Verification link: {verification_link}")
+    
+    print(f"\n🔗 Verification link generated:")
+    print(f"   {verification_link[:100]}..." if len(verification_link) > 100 else f"   {verification_link}")
+    
     result = send_email(student_email, subject, html_body, text_body)
           
     if not result:
@@ -154,27 +166,36 @@ def send_verification_email(student_email: str, student_name: str, verification_
 
 def send_password_reset_email(student_email: str, student_name: str, reset_token: str):
     """Send password reset link to student"""
-    reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}"
+    
+    # FIXED: Properly encode the token to handle special characters
+    encoded_token = quote(reset_token, safe='')
+    reset_link = f"{FRONTEND_URL}/reset-password?token={encoded_token}"
+    
     subject = "Reset Your CampusStay Password"
     
     html_body = f"""
     <!DOCTYPE html>
     <html>
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }}
             .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
             .header {{ background: linear-gradient(135deg, #ea580c, #dc2626); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
             .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-            .button {{ display: inline-block; background: #ea580c; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }}
+            .button {{ display: inline-block; background: #ea580c; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }}
+            .button:hover {{ background: #dc2626; }}
             .alert {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+            .warning {{ background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 4px; }}
             .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
+            .link-text {{ word-break: break-all; color: #6b7280; font-size: 14px; background: #f3f4f6; padding: 10px; border-radius: 4px; margin-top: 10px; }}
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h1>🔐 Password Reset Request</h1>
+                <h1 style="margin: 0;">🔐 Password Reset Request</h1>
             </div>
             <div class="content">
                 <p>Dear <strong>{student_name}</strong>,</p>
@@ -182,7 +203,7 @@ def send_password_reset_email(student_email: str, student_name: str, reset_token
                 <p>We received a request to reset your CampusStay password. Click the button below to create a new password:</p>
                 
                 <p style="text-align: center;">
-                    <a href="{reset_link}" class="button">Reset My Password</a>
+                    <a href="{reset_link}" class="button" style="color: white;">Reset My Password</a>
                 </p>
                 
                 <div class="alert">
@@ -190,9 +211,9 @@ def send_password_reset_email(student_email: str, student_name: str, reset_token
                 </div>
                 
                 <p style="margin-top: 20px;">If the button doesn't work, copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #6b7280; font-size: 14px;">{reset_link}</p>
+                <div class="link-text">{reset_link}</div>
                 
-                <div style="background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                <div class="warning">
                     <p style="margin: 0;"><strong>⚠️ Didn't request this?</strong></p>
                     <p style="margin: 5px 0 0 0;">If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
                 </div>
@@ -224,7 +245,9 @@ def send_password_reset_email(student_email: str, student_name: str, reset_token
     CampusStay - Tshwane University of Technology
     """
     
-    print(f"\n🔗 Password reset link: {reset_link}")
+    print(f"\n🔗 Password reset link generated:")
+    print(f"   {reset_link[:100]}..." if len(reset_link) > 100 else f"   {reset_link}")
+    
     result = send_email(student_email, subject, html_body, text_body)
     
     if not result:
@@ -275,7 +298,7 @@ def send_application_confirmation_email(
                 </div>
                 
                 <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student" class="button">View Application</a>
+                    <a href="{FRONTEND_URL}/student/dashboard" class="button">View Application</a>
                 </p>
                 
                 <div class="footer">
@@ -324,7 +347,7 @@ def send_application_approved_email(
                 <p>Your application for <strong>{property_title}</strong> at <strong>{property_address}</strong> has been APPROVED!</p>
                 
                 <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student" class="button">View Details</a>
+                    <a href="{FRONTEND_URL}/student/dashboard" class="button">View Details</a>
                 </p>
                 
                 <div class="footer">
@@ -374,7 +397,7 @@ def send_application_rejected_email(
                 <p>Please explore other available properties on our platform.</p>
                 
                 <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student" class="button">Browse Properties</a>
+                    <a href="{FRONTEND_URL}/student/dashboard" class="button">Browse Properties</a>
                 </p>
                 
                 <div class="footer">
@@ -420,7 +443,7 @@ def send_document_reminder_email(
                 <p>Please upload your supporting documents for <strong>{property_title}</strong>.</p>
                 
                 <p style="text-align: center;">
-                    <a href="{FRONTEND_URL}/student" class="button">Upload Now</a>
+                    <a href="{FRONTEND_URL}/student/dashboard" class="button">Upload Now</a>
                 </p>
             </div>
         </div>

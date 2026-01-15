@@ -3,6 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, Lock, CheckCircle, AlertCircle } from 'lucide-react';
 import { fetcher } from '../utils/api';
 
+
+
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
