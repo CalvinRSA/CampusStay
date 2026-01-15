@@ -178,7 +178,7 @@ export default function ResetPassword() {
 
         {/* Footer */}
         <p className="text-center text-gray-500 text-sm mt-8">
-          © 2025 CampusStay - For Tshwane University of Technology
+          © 2025 CampusStay - Tshwane University of Technology
         </p>
       </div>
     </div>
