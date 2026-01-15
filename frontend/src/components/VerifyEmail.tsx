@@ -1,4 +1,4 @@
-// src/components/VerifyEmail.tsx - FIXED REDIRECT VERSION
+// src/components/VerifyEmail.tsx - FIXED VERSION
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, Home, AlertTriangle, LogIn } from 'lucide-react';
@@ -13,7 +13,8 @@ export default function VerifyEmail() {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [details, setDetails] = useState<string[]>([]);
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(5);
+  const [canRedirect, setCanRedirect] = useState(false);
 
   useEffect(() => {
     const logStep = (step: string) => {
@@ -88,19 +89,9 @@ export default function VerifyEmail() {
           setStatus('success');
           setMessage(messageText || 'Email verified successfully!');
           
-          // Start countdown
-          logStep('Starting 3-second countdown before redirect...');
-          const countdownInterval = setInterval(() => {
-            setCountdown(prev => {
-              if (prev <= 1) {
-                clearInterval(countdownInterval);
-                logStep('Redirecting to login page now...');
-                navigate('/', { replace: true });
-                return 0;
-              }
-              return prev - 1;
-            });
-          }, 1000);
+          // Enable redirect only after successful verification
+          logStep('Enabling redirect capability...');
+          setCanRedirect(true);
 
         } else {
           logStep('❌ ERROR: Unexpected response format');
@@ -115,7 +106,38 @@ export default function VerifyEmail() {
     };
 
     verifyEmail();
-  }, [token, navigate]);
+  }, [token]);
+
+  // Separate countdown effect that only runs after successful verification
+  useEffect(() => {
+    if (canRedirect && status === 'success') {
+      console.log('[VERIFY] Starting countdown for redirect...');
+      
+      const countdownInterval = setInterval(() => {
+        setCountdown(prev => {
+          console.log(`[VERIFY] Countdown: ${prev}`);
+          
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            console.log('[VERIFY] Countdown complete, redirecting to login...');
+            navigate('/', { replace: true });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => {
+        console.log('[VERIFY] Cleaning up countdown interval');
+        clearInterval(countdownInterval);
+      };
+    }
+  }, [canRedirect, status, navigate]);
+
+  const handleManualRedirect = () => {
+    console.log('[VERIFY] Manual redirect triggered');
+    navigate('/', { replace: true });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-red-50 flex items-center justify-center p-4">
@@ -161,18 +183,20 @@ export default function VerifyEmail() {
               </p>
               
               {/* Countdown Display */}
-              <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center justify-center space-x-3">
-                  <Loader2 className="w-5 h-5 animate-spin text-orange-600" />
-                  <span className="text-gray-700 font-medium">
-                    Redirecting to login in <span className="text-2xl font-bold text-orange-600">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
-                  </span>
+              {canRedirect && (
+                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center justify-center space-x-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-orange-600" />
+                    <span className="text-gray-700 font-medium">
+                      Redirecting to login in <span className="text-2xl font-bold text-orange-600">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Manual redirect button */}
               <button
-                onClick={() => navigate('/', { replace: true })}
+                onClick={handleManualRedirect}
                 className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2 mx-auto"
               >
                 <LogIn className="w-5 h-5" /> Go to Login Now
@@ -202,7 +226,7 @@ export default function VerifyEmail() {
               </div>
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => navigate('/', { replace: true })}
+                  onClick={handleManualRedirect}
                   className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2"
                 >
                   <LogIn className="w-5 h-5" /> Try Login Anyway

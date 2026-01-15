@@ -1,8 +1,7 @@
-// src/components/ResetPassword.tsx - FIXED REDIRECT VERSION
+// src/components/ResetPassword.tsx - FIXED VERSION
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, Lock, CheckCircle, AlertCircle, LogIn, Loader2 } from 'lucide-react';
-import { fetcher } from '../utils/api';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -14,7 +13,8 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(5);
+  const [canRedirect, setCanRedirect] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -22,14 +22,18 @@ export default function ResetPassword() {
     }
   }, [token]);
 
-  // Countdown timer after successful reset
+  // Separate countdown effect that only runs after successful reset
   useEffect(() => {
-    if (success) {
+    if (canRedirect && success) {
+      console.log('[RESET] Starting countdown for redirect...');
+      
       const countdownInterval = setInterval(() => {
         setCountdown(prev => {
+          console.log(`[RESET] Countdown: ${prev}`);
+          
           if (prev <= 1) {
             clearInterval(countdownInterval);
-            console.log('Redirecting to login page...');
+            console.log('[RESET] Countdown complete, redirecting to login...');
             navigate('/', { replace: true });
             return 0;
           }
@@ -37,9 +41,12 @@ export default function ResetPassword() {
         });
       }, 1000);
 
-      return () => clearInterval(countdownInterval);
+      return () => {
+        console.log('[RESET] Cleaning up countdown interval');
+        clearInterval(countdownInterval);
+      };
     }
-  }, [success, navigate]);
+  }, [canRedirect, success, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,9 +69,11 @@ export default function ResetPassword() {
     }
 
     setLoading(true);
+    console.log('[RESET] Starting password reset...');
 
     try {
-      await fetcher('https://campusstay-backend.onrender.com/auth/reset-password', {
+      console.log('[RESET] Sending reset request to backend...');
+      const response = await fetch('https://campusstay-backend.onrender.com/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -73,13 +82,35 @@ export default function ResetPassword() {
         }),
       });
 
+      console.log(`[RESET] Response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('[RESET] Error response:', errorData);
+        throw new Error(errorData.detail || 'Failed to reset password');
+      }
+
+      const data = await response.json();
+      console.log('[RESET] Success response:', data);
+      console.log('[RESET] ✅ Password reset successful!');
+
       setSuccess(true);
+      
+      // Enable redirect only after successful reset
+      console.log('[RESET] Enabling redirect capability...');
+      setCanRedirect(true);
 
     } catch (err: any) {
+      console.error('[RESET] ❌ Password reset failed:', err);
       setError(err.message || 'Failed to reset password. The link may have expired.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleManualRedirect = () => {
+    console.log('[RESET] Manual redirect triggered');
+    navigate('/', { replace: true });
   };
 
   return (
@@ -110,18 +141,20 @@ export default function ResetPassword() {
               </p>
               
               {/* Countdown Display */}
-              <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center justify-center space-x-3">
-                  <Loader2 className="w-5 h-5 animate-spin text-orange-600" />
-                  <span className="text-gray-700 font-medium">
-                    Redirecting to login in <span className="text-2xl font-bold text-orange-600">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
-                  </span>
+              {canRedirect && (
+                <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-center justify-center space-x-3">
+                    <Loader2 className="w-5 h-5 animate-spin text-orange-600" />
+                    <span className="text-gray-700 font-medium">
+                      Redirecting to login in <span className="text-2xl font-bold text-orange-600">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Manual redirect button */}
               <button
-                onClick={() => navigate('/', { replace: true })}
+                onClick={handleManualRedirect}
                 className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-8 py-3 rounded-lg font-bold hover:shadow-lg transition flex items-center gap-2 mx-auto"
               >
                 <LogIn className="w-5 h-5" /> Go to Login Now
@@ -200,7 +233,7 @@ export default function ResetPassword() {
 
             <div className="mt-6 text-center">
               <button
-                onClick={() => navigate('/', { replace: true })}
+                onClick={handleManualRedirect}
                 className="text-orange-600 hover:text-orange-700 font-medium text-sm flex items-center gap-2 mx-auto"
               >
                 <LogIn className="w-4 h-4" /> Back to Login
