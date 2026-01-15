@@ -1,5 +1,6 @@
 -- ========================================
 -- CAMPUSSTAY DATABASE SCHEMA - FINAL PRODUCTION VERSION
+-- WITH PASSWORD RESET FUNCTIONALITY
 -- ========================================
 
 -- Drop tables in correct order
@@ -22,7 +23,7 @@ CREATE TABLE admins (
 );
 
 -- ========================================
--- 2. Students - WITH EMAIL VERIFICATION
+-- 2. Students - WITH EMAIL VERIFICATION + PASSWORD RESET
 -- ========================================
 CREATE TABLE students (
     id SERIAL PRIMARY KEY,
@@ -33,14 +34,18 @@ CREATE TABLE students (
     campus VARCHAR(50) NOT NULL,
     hashed_password TEXT NOT NULL,
     
-    -- B2 document URLs
+    -- Document URLs from R2/B2
     id_document_url TEXT,
     proof_of_registration_url TEXT,
     
-    -- EMAIL VERIFICATION (NEW!)
+    -- EMAIL VERIFICATION
     email_verified BOOLEAN DEFAULT FALSE NOT NULL,
     verification_token VARCHAR(255) UNIQUE,
     verification_token_expires TIMESTAMP WITH TIME ZONE,
+    
+    -- PASSWORD RESET (NEW!)
+    password_reset_token VARCHAR(255) UNIQUE,
+    password_reset_token_expires TIMESTAMP WITH TIME ZONE,
 
     created_at TIMESTAMP DEFAULT NOW()
 );
@@ -100,5 +105,9 @@ CREATE INDEX idx_applications_property ON applications(property_id);
 CREATE INDEX idx_applications_status ON applications(status);
 CREATE INDEX idx_students_email ON students(email);
 CREATE INDEX idx_students_token ON students(verification_token);
+CREATE INDEX idx_students_password_reset_token ON students(password_reset_token);
 
-SELECT 'CampusStay database fully ready! Email verification + B2 storage + everything works!' AS status;
+-- ========================================
+-- 8. Success Message
+-- ========================================
+SELECT 'CampusStay database fully ready! Email verification + Password reset + B2 storage + everything works!' AS status;

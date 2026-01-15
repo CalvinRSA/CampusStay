@@ -35,6 +35,10 @@ class Student(Base):
     verification_token = Column(String(255), nullable=True, unique=True)
     verification_token_expires = Column(DateTime(timezone=True), nullable=True)
     
+    # Password reset fields
+    password_reset_token = Column(String(255), nullable=True, unique=True)
+    password_reset_token_expires = Column(DateTime(timezone=True), nullable=True)
+    
     # Document URLs from R2
     id_document_url = Column(Text, nullable=True)
     proof_of_registration_url = Column(Text, nullable=True)

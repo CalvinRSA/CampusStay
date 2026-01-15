@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Home, Shield, Clock, MapPin, Users, ChevronRight, Menu, X } from 'lucide-react';
+import { Home, Shield, Clock, MapPin, Users, ChevronRight, Menu, X, Mail } from 'lucide-react';
 import { login, registerStudent } from '../utils/auth';
+import { fetcher } from '../utils/api';
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
   const [signupRole, setSignupRole] = useState<'student' | 'admin' | null>(null);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -13,6 +15,10 @@ export default function LandingPage() {
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
+
+  // Forgot Password
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
 
   // Student signup
   const [studentData, setStudentData] = useState({
@@ -24,10 +30,10 @@ export default function LandingPage() {
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 3000);
+    setTimeout(() => setNotification(null), 5000);
   };
 
-const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     setLoginLoading(true);
@@ -74,6 +80,30 @@ const handleLogin = async (e: React.FormEvent) => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotPasswordLoading(true);
+
+    try {
+      await fetcher('/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotPasswordEmail }),
+      });
+
+      showNotification(
+        'If an account exists with that email, a password reset link has been sent. Please check your inbox.',
+        'success'
+      );
+      setShowForgotPassword(false);
+      setForgotPasswordEmail('');
+    } catch (err: any) {
+      showNotification(err.message || 'Failed to send reset email', 'error');
+    } finally {
+      setForgotPasswordLoading(false);
+    }
+  };
+
   const handleStudentSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -86,7 +116,7 @@ const handleLogin = async (e: React.FormEvent) => {
 
     try {
       await registerStudent(studentData);
-      showNotification("Registered successfully! You can now log in.", 'success');
+      showNotification("Registered successfully! Check your email to verify your account.", 'success');
       setShowSignup(false);
       setSignupRole(null);
       setStudentData({
@@ -106,7 +136,7 @@ const handleLogin = async (e: React.FormEvent) => {
       {notification && (
         <div className={`fixed top-4 right-4 z-[60] px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 ${
           notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
-        } text-white font-medium`}>
+        } text-white font-medium max-w-md`}>
           {notification.message}
         </div>
       )}
@@ -370,9 +400,15 @@ const handleLogin = async (e: React.FormEvent) => {
                   <input type="checkbox" className="mr-2" disabled={loginLoading} />
                   <span className="text-gray-600">Remember me</span>
                 </label>
-                <a href="#" className="text-orange-600 hover:text-orange-700">
+                <button 
+                  onClick={() => {
+                    setShowLogin(false);
+                    setShowForgotPassword(true);
+                  }}
+                  className="text-orange-600 hover:text-orange-700"
+                >
                   Forgot password?
-                </a>
+                </button>
               </div>
 
               <button
@@ -405,6 +441,77 @@ const handleLogin = async (e: React.FormEvent) => {
                 disabled={loginLoading}
               >
                 Sign up
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-8 relative">
+            <button
+              onClick={() => setShowForgotPassword(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-8 h-8 text-white" />
+              </div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">Forgot Password?</h2>
+              <p className="text-gray-600">Enter your email and we'll send you a reset link</p>
+            </div>
+
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Official TUT Email
+                </label>
+                <input
+                  type="email"
+                  value={forgotPasswordEmail}
+                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+                  placeholder="your.email@tut.ac.za"
+                  required
+                  disabled={forgotPasswordLoading}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={forgotPasswordLoading}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {forgotPasswordLoading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Sending...
+                  </>
+                ) : (
+                  'Send Reset Link'
+                )}
+              </button>
+            </form>
+
+            <p className="text-center text-gray-600 mt-6">
+              Remember your password?{' '}
+              <button
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setShowLogin(true);
+                }}
+                className="text-orange-600 hover:text-orange-700 font-semibold"
+                disabled={forgotPasswordLoading}
+              >
+                Log in
               </button>
             </p>
           </div>

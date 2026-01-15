@@ -9,7 +9,7 @@ from datetime import timedelta, datetime, timezone
 
 from .. import models, schemas, database
 from ..core.security import create_access_token, verify_password, hash_password
-from ..core.email_utils import send_verification_email
+from ..core.email_utils import send_verification_email, send_password_reset_email
 
 # ── Config ─────────────────────────────────────
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -127,6 +127,105 @@ def verify_email(token: str, db: Session = Depends(database.get_db)):
 
         return {"message": "Email verified successfully! You can now log in and apply for accommodation."}
 
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid or corrupted token")
+
+
+# ==================== FORGOT PASSWORD ====================
+@router.post("/forgot-password")
+def forgot_password(
+    email: str,
+    db: Session = Depends(database.get_db),
+):
+    """Send password reset email to student"""
+    
+    # Find student by email
+    student = db.query(models.Student).filter(models.Student.email == email).first()
+    
+    # Don't reveal if email exists or not (security best practice)
+    if not student:
+        return {"message": "If an account with that email exists, a password reset link has been sent."}
+    
+    # Generate password reset token (valid for 1 hour)
+    reset_token = jwt.encode(
+        {
+            "sub": student.email,
+            "type": "password_reset",
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1)
+        },
+        SECRET_KEY,
+        algorithm=ALGORITHM
+    )
+    
+    # Store token in database
+    student.password_reset_token = reset_token
+    student.password_reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    db.commit()
+    
+    # Send password reset email
+    try:
+        email_sent = send_password_reset_email(
+            student_email=student.email,
+            student_name=student.full_name,
+            reset_token=reset_token
+        )
+        if email_sent:
+            print(f"✅ Password reset email sent to {student.email}")
+        else:
+            print(f"⚠️ Password reset email not sent")
+    except Exception as e:
+        print(f"❌ Password reset email failed: {e}")
+    
+    return {"message": "If an account with that email exists, a password reset link has been sent."}
+
+
+# ==================== RESET PASSWORD ====================
+@router.post("/reset-password")
+def reset_password(
+    token: str,
+    new_password: str,
+    db: Session = Depends(database.get_db),
+):
+    """Reset password using valid token"""
+    
+    if not token:
+        raise HTTPException(status_code=400, detail="No token provided")
+    
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    try:
+        # Decode token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        token_type = payload.get("type")
+        
+        # Must be password reset token
+        if token_type != "password_reset":
+            raise HTTPException(status_code=400, detail="Invalid token type")
+        
+        # Find student
+        student = db.query(models.Student).filter(models.Student.email == email).first()
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+        
+        # Check if token matches the one in database
+        if student.password_reset_token != token:
+            raise HTTPException(status_code=400, detail="Invalid or expired token")
+        
+        # Token expired?
+        expires = payload.get("exp")
+        if datetime.now(timezone.utc) > datetime.fromtimestamp(expires, tz=timezone.utc):
+            raise HTTPException(status_code=400, detail="Password reset link has expired")
+        
+        # SUCCESS – Reset password
+        student.hashed_password = hash_password(new_password)
+        student.password_reset_token = None
+        student.password_reset_token_expires = None
+        db.commit()
+        
+        return {"message": "Password has been reset successfully! You can now log in with your new password."}
+        
     except JWTError:
         raise HTTPException(status_code=400, detail="Invalid or corrupted token")
 

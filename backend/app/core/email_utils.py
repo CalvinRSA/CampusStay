@@ -5,7 +5,7 @@ import traceback
 
 # Resend Configuration
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
-RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@campusstay.co.za")  # Use your verified domain email here, e.g., "CampusStay <no-reply@yourdomain.com>"
+RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "noreply@campusstay.co.za")
 FROM_NAME = os.getenv("FROM_NAME", "CampusStay TUT")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://campusstay.co.za")
 
@@ -58,15 +58,13 @@ def send_email(to_email: str, subject: str, html_body: str, text_body: str = Non
         print(f"✅ Email successfully sent! Resend ID: {response.get('id')}\n")
         return True
         
-    except Exception as e:  # Broad catch – works with current SDK v2+
+    except Exception as e:
         print(f"\n❌ Failed to send email via Resend!")
         print(f"   Error: {str(e)}")
         print(f"   Type: {type(e).__name__}")
-        traceback.print_exc()  # Prints full stack trace for better debugging
+        traceback.print_exc()
         return False
 
-# Your specific email functions remain the same (they call send_email)
-# ... (keep all the functions below unchanged: send_verification_email, send_application_confirmation_email, etc.)
 
 def send_verification_email(student_email: str, student_name: str, verification_token: str):
     """Send email verification link to new student"""
@@ -152,6 +150,90 @@ def send_verification_email(student_email: str, student_name: str, verification_
         print(f"   {verification_link}\n")
     
     return result
+
+
+def send_password_reset_email(student_email: str, student_name: str, reset_token: str):
+    """Send password reset link to student"""
+    reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}"
+    subject = "Reset Your CampusStay Password"
+    
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #ea580c, #dc2626); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .button {{ display: inline-block; background: #ea580c; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }}
+            .alert {{ background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+            .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🔐 Password Reset Request</h1>
+            </div>
+            <div class="content">
+                <p>Dear <strong>{student_name}</strong>,</p>
+                
+                <p>We received a request to reset your CampusStay password. Click the button below to create a new password:</p>
+                
+                <p style="text-align: center;">
+                    <a href="{reset_link}" class="button">Reset My Password</a>
+                </p>
+                
+                <div class="alert">
+                    <p style="margin: 0;"><strong>⚠️ Important:</strong> This password reset link will expire in 1 hour for security reasons.</p>
+                </div>
+                
+                <p style="margin-top: 20px;">If the button doesn't work, copy and paste this link into your browser:</p>
+                <p style="word-break: break-all; color: #6b7280; font-size: 14px;">{reset_link}</p>
+                
+                <div style="background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <p style="margin: 0;"><strong>⚠️ Didn't request this?</strong></p>
+                    <p style="margin: 5px 0 0 0;">If you didn't request a password reset, please ignore this email. Your password will remain unchanged.</p>
+                </div>
+                
+                <div class="footer">
+                    <p><strong>CampusStay - Tshwane University of Technology</strong></p>
+                    <p>This is an automated email. Please do not reply directly to this message.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    text_body = f"""
+    Password Reset Request
+    
+    Dear {student_name},
+    
+    We received a request to reset your CampusStay password.
+    
+    Click this link to reset your password:
+    {reset_link}
+    
+    This link will expire in 1 hour.
+    
+    If you didn't request this, please ignore this email.
+    
+    CampusStay - Tshwane University of Technology
+    """
+    
+    print(f"\n🔗 Password reset link: {reset_link}")
+    result = send_email(student_email, subject, html_body, text_body)
+    
+    if not result:
+        print(f"\n⚠️  PASSWORD RESET EMAIL FAILED TO SEND!")
+        print(f"   Student can still reset password manually using this link:")
+        print(f"   {reset_link}\n")
+    
+    return result
+
 
 def send_application_confirmation_email(
     student_email: str,
