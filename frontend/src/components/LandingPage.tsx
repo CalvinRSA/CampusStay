@@ -326,6 +326,54 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Contact Section */}
+      <section id="contact" className="py-20 px-4 bg-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Get In Touch</h2>
+            <p className="text-xl text-gray-600">Have questions? We're here to help</p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+            <div className="bg-gradient-to-br from-orange-50 to-white p-8 rounded-2xl border border-orange-100">
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center mb-6">
+                <Mail className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">Email Us</h3>
+              <div className="space-y-3 text-gray-600">
+                <p>
+                  <a href="mailto:info@campusstay.co.za" className="hover:text-orange-600 transition">
+                    info@campusstay.co.za
+                  </a>
+                </p>
+                <p>
+                  <a href="mailto:molakengcalvin@gmail.com" className="hover:text-orange-600 transition">
+                    molakengcalvin@gmail.com
+                  </a>
+                </p>
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-red-50 to-white p-8 rounded-2xl border border-red-100">
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center mb-6">
+                <Users className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 mb-4">Call Us</h3>
+              <div className="space-y-3 text-gray-600">
+                <p>
+                  <a href="tel:+27710506325" className="hover:text-orange-600 transition">
+                    +27 71 050 6325
+                  </a>
+                </p>
+                <p>
+                  <a href="tel:+27723013022" className="hover:text-orange-600 transition">
+                    +27 72 301 3022
+                  </a>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-12 px-4">
         <div className="max-w-7xl mx-auto text-center">
