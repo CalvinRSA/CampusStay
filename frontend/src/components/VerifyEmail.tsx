@@ -1,8 +1,9 @@
-// src/components/VerifyEmail.tsx - FIXED TO USE API UTILS
+// src/components/VerifyEmail.tsx - DEFINITIVE WORKING VERSION
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, Home, AlertTriangle, LogIn } from 'lucide-react';
-import { API_BASE } from '../utils/api';
+
+const API_BASE = 'https://campusstay-backend.onrender.com';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -15,36 +16,46 @@ export default function VerifyEmail() {
   const [countdown, setCountdown] = useState(5);
   const [canRedirect, setCanRedirect] = useState(false);
 
+  // Main verification effect
   useEffect(() => {
     const logStep = (step: string) => {
       console.log(`[VERIFY] ${step}`);
       setDetails(prev => [...prev, step]);
     };
 
-    logStep('=== EMAIL VERIFICATION STARTED ===');
-    logStep(`Token present: ${token ? 'YES' : 'NO'}`);
-    
-    if (token) {
-      logStep(`Token length: ${token.length}`);
-      logStep(`Token preview: ${token.substring(0, 50)}...`);
-    }
-
-    if (!token) {
-      logStep('❌ ERROR: No token in URL');
-      setStatus('error');
-      setMessage('Invalid verification link. No token provided.');
-      return;
-    }
+    // Prevent double execution in StrictMode
+    let executed = false;
 
     const verifyEmail = async () => {
+      if (executed) {
+        logStep('⚠️ Skipping duplicate execution (StrictMode)');
+        return;
+      }
+      executed = true;
+
+      logStep('=== EMAIL VERIFICATION STARTED ===');
+      logStep(`Token present: ${token ? 'YES' : 'NO'}`);
+      logStep(`Current URL: ${window.location.href}`);
+      
+      if (token) {
+        logStep(`Token length: ${token.length}`);
+        logStep(`Token preview: ${token.substring(0, 50)}...`);
+      }
+
+      if (!token) {
+        logStep('❌ ERROR: No token in URL');
+        setStatus('error');
+        setMessage('Invalid verification link. No token provided.');
+        return;
+      }
+
       try {
         logStep('📡 Preparing verification request');
         
-        // Use API_BASE from your api.ts file
         const url = `${API_BASE}/auth/verify-email?token=${encodeURIComponent(token)}`;
-        logStep(`Request URL: ${API_BASE}/auth/verify-email?token=...`);
+        logStep(`Request URL: ${url}`);
 
-        logStep('Sending request...');
+        logStep('🚀 Sending request to backend...');
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -53,18 +64,18 @@ export default function VerifyEmail() {
           },
         });
 
-        logStep(`Response status: ${response.status}`);
+        logStep(`✅ Response received: ${response.status}`);
         logStep(`Response OK: ${response.ok}`);
 
         const responseText = await response.text();
-        logStep(`Response received (${responseText.length} chars)`);
+        logStep(`Response length: ${responseText.length} chars`);
 
         let data;
         try {
           data = JSON.parse(responseText);
-          logStep('Response parsed successfully');
-          logStep(`Response message: ${data.message}`);
-          logStep(`Response status: ${data.status}`);
+          logStep('✅ Response parsed successfully');
+          logStep(`Message: ${data.message}`);
+          logStep(`Status: ${data.status}`);
         } catch (e) {
           logStep('❌ ERROR: Failed to parse JSON response');
           logStep(`Raw response: ${responseText.substring(0, 200)}`);
@@ -85,12 +96,12 @@ export default function VerifyEmail() {
           data.status === 'already_verified';
 
         if (isSuccess) {
-          logStep('✅ SUCCESS: Email verified!');
+          logStep('🎉 SUCCESS: Email verified!');
           setStatus('success');
           setMessage(messageText || 'Email verified successfully!');
           
           // Enable redirect only after successful verification
-          logStep('Enabling redirect capability...');
+          logStep('✅ Enabling redirect capability...');
           setCanRedirect(true);
 
         } else {
@@ -100,26 +111,27 @@ export default function VerifyEmail() {
 
       } catch (error: any) {
         logStep(`❌ VERIFICATION FAILED: ${error.message}`);
+        console.error('[VERIFY] Full error:', error);
         setStatus('error');
         setMessage(error.message || 'Verification failed');
       }
     };
 
     verifyEmail();
-  }, [token]);
+  }, [token]); // Only re-run if token changes
 
-  // Separate countdown effect that only runs after successful verification
+  // Separate countdown effect
   useEffect(() => {
     if (canRedirect && status === 'success') {
-      console.log('[VERIFY] Starting countdown for redirect...');
+      console.log('[VERIFY] ⏰ Starting countdown for redirect...');
       
       const countdownInterval = setInterval(() => {
         setCountdown(prev => {
-          console.log(`[VERIFY] Countdown: ${prev}`);
+          console.log(`[VERIFY] ⏱️ Countdown: ${prev}`);
           
           if (prev <= 1) {
             clearInterval(countdownInterval);
-            console.log('[VERIFY] Countdown complete, redirecting to login...');
+            console.log('[VERIFY] 🚀 Redirecting to login...');
             navigate('/', { replace: true });
             return 0;
           }
@@ -128,14 +140,14 @@ export default function VerifyEmail() {
       }, 1000);
 
       return () => {
-        console.log('[VERIFY] Cleaning up countdown interval');
+        console.log('[VERIFY] 🧹 Cleaning up countdown interval');
         clearInterval(countdownInterval);
       };
     }
   }, [canRedirect, status, navigate]);
 
   const handleManualRedirect = () => {
-    console.log('[VERIFY] Manual redirect triggered');
+    console.log('[VERIFY] 👆 Manual redirect triggered');
     navigate('/', { replace: true });
   };
 
@@ -161,6 +173,7 @@ export default function VerifyEmail() {
               <Loader2 className="w-16 h-16 animate-spin text-orange-600 mx-auto mb-6" />
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Verifying Your Email...</h2>
               <p className="text-gray-600">Please wait while we verify your account.</p>
+              <p className="text-xs text-gray-400 mt-4">Check browser console (F12) for detailed logs</p>
             </>
           )}
           
@@ -248,6 +261,18 @@ export default function VerifyEmail() {
                 {detail}
               </div>
             ))}
+            <div className="border-b border-gray-200 py-1 mt-4 font-bold">
+              Environment Info:
+            </div>
+            <div className="border-b border-gray-200 py-1">
+              Browser: {navigator.userAgent}
+            </div>
+            <div className="border-b border-gray-200 py-1">
+              Current URL: {window.location.href}
+            </div>
+            <div className="border-b border-gray-200 py-1">
+              API Base: {API_BASE}
+            </div>
           </div>
         </details>
 

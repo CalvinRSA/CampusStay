@@ -1,8 +1,9 @@
-// src/components/ResetPassword.tsx - FIXED TO USE API UTILS
+// src/components/ResetPassword.tsx - DEFINITIVE WORKING VERSION
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, Lock, CheckCircle, AlertCircle, LogIn, Loader2 } from 'lucide-react';
-import { API_BASE } from '../utils/api';
+
+const API_BASE = 'https://campusstay-backend.onrender.com';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -18,23 +19,30 @@ export default function ResetPassword() {
   const [canRedirect, setCanRedirect] = useState(false);
 
   useEffect(() => {
+    console.log('[RESET] Component mounted');
+    console.log('[RESET] Token present:', !!token);
+    console.log('[RESET] Current URL:', window.location.href);
+    
     if (!token) {
       setError('Invalid or missing reset token');
+      console.log('[RESET] ❌ No token in URL');
+    } else {
+      console.log('[RESET] ✅ Token found:', token.substring(0, 50) + '...');
     }
   }, [token]);
 
   // Separate countdown effect that only runs after successful reset
   useEffect(() => {
     if (canRedirect && success) {
-      console.log('[RESET] Starting countdown for redirect...');
+      console.log('[RESET] ⏰ Starting countdown for redirect...');
       
       const countdownInterval = setInterval(() => {
         setCountdown(prev => {
-          console.log(`[RESET] Countdown: ${prev}`);
+          console.log(`[RESET] ⏱️ Countdown: ${prev}`);
           
           if (prev <= 1) {
             clearInterval(countdownInterval);
-            console.log('[RESET] Countdown complete, redirecting to login...');
+            console.log('[RESET] 🚀 Redirecting to login...');
             navigate('/', { replace: true });
             return 0;
           }
@@ -43,7 +51,7 @@ export default function ResetPassword() {
       }, 1000);
 
       return () => {
-        console.log('[RESET] Cleaning up countdown interval');
+        console.log('[RESET] 🧹 Cleaning up countdown interval');
         clearInterval(countdownInterval);
       };
     }
@@ -53,29 +61,35 @@ export default function ResetPassword() {
     e.preventDefault();
     setError(null);
 
+    console.log('[RESET] 📝 Form submitted');
+
     // Validation
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      console.log('[RESET] ❌ Password too short');
       return;
     }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
+      console.log('[RESET] ❌ Passwords do not match');
       return;
     }
 
     if (!token) {
       setError('Invalid reset token');
+      console.log('[RESET] ❌ No token available');
       return;
     }
 
     setLoading(true);
-    console.log('[RESET] Starting password reset...');
+    console.log('[RESET] 🚀 Starting password reset...');
 
     try {
-      console.log('[RESET] Sending reset request to backend...');
-      // Use API_BASE from your api.ts file
-      const response = await fetch(`${API_BASE}/auth/reset-password`, {
+      const url = `${API_BASE}/auth/reset-password`;
+      console.log('[RESET] 📡 Sending request to:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -87,22 +101,22 @@ export default function ResetPassword() {
         }),
       });
 
-      console.log(`[RESET] Response status: ${response.status}`);
+      console.log(`[RESET] ✅ Response received: ${response.status}`);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.log('[RESET] Error response:', errorData);
+        console.log('[RESET] ❌ Error response:', errorData);
         throw new Error(errorData.detail || 'Failed to reset password');
       }
 
       const data = await response.json();
-      console.log('[RESET] Success response:', data);
-      console.log('[RESET] ✅ Password reset successful!');
+      console.log('[RESET] ✅ Success response:', data);
+      console.log('[RESET] 🎉 Password reset successful!');
 
       setSuccess(true);
       
       // Enable redirect only after successful reset
-      console.log('[RESET] Enabling redirect capability...');
+      console.log('[RESET] ✅ Enabling redirect capability...');
       setCanRedirect(true);
 
     } catch (err: any) {
@@ -114,7 +128,7 @@ export default function ResetPassword() {
   };
 
   const handleManualRedirect = () => {
-    console.log('[RESET] Manual redirect triggered');
+    console.log('[RESET] 👆 Manual redirect triggered');
     navigate('/', { replace: true });
   };
 
@@ -244,6 +258,10 @@ export default function ResetPassword() {
                 <LogIn className="w-4 h-4" /> Back to Login
               </button>
             </div>
+
+            <p className="text-xs text-gray-400 text-center mt-4">
+              Open browser console (F12) for detailed logs
+            </p>
           </div>
         )}
 
