@@ -1,9 +1,8 @@
-// src/components/VerifyEmail.tsx - FIXED VERSION
+// src/components/VerifyEmail.tsx - FIXED TO USE API UTILS
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, Home, AlertTriangle, LogIn } from 'lucide-react';
-
-const API_BASE = 'https://campusstay-backend.onrender.com';
+import { API_BASE } from '../utils/api';
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -41,6 +40,7 @@ export default function VerifyEmail() {
       try {
         logStep('📡 Preparing verification request');
         
+        // Use API_BASE from your api.ts file
         const url = `${API_BASE}/auth/verify-email?token=${encodeURIComponent(token)}`;
         logStep(`Request URL: ${API_BASE}/auth/verify-email?token=...`);
 

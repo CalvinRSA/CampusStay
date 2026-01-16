@@ -1,7 +1,8 @@
-// src/components/ResetPassword.tsx - FIXED VERSION
+// src/components/ResetPassword.tsx - FIXED TO USE API UTILS
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, Lock, CheckCircle, AlertCircle, LogIn, Loader2 } from 'lucide-react';
+import { API_BASE } from '../utils/api';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -73,9 +74,13 @@ export default function ResetPassword() {
 
     try {
       console.log('[RESET] Sending reset request to backend...');
-      const response = await fetch('https://campusstay-backend.onrender.com/auth/reset-password', {
+      // Use API_BASE from your api.ts file
+      const response = await fetch(`${API_BASE}/auth/reset-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({
           token,
           new_password: password,
