@@ -407,7 +407,7 @@ export default function LandingPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Official TUT Email
+                  Official Email/TUT Email
                 </label>
                 <input
                   type="email"
@@ -416,7 +416,7 @@ export default function LandingPage() {
                     setLoginData({ ...loginData, email: e.target.value })
                   }
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                  placeholder="your.email@tut.ac.za"
+                  placeholder="your.email@gmail.com"
                   required
                   disabled={loginLoading}
                 />
@@ -517,14 +517,14 @@ export default function LandingPage() {
             <form onSubmit={handleForgotPassword} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Official TUT Email
+                  Official Email/TUT Email
                 </label>
                 <input
                   type="email"
                   value={forgotPasswordEmail}
                   onChange={(e) => setForgotPasswordEmail(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                  placeholder="your.email@tut.ac.za"
+                  placeholder="your.email@gmail.com"
                   required
                   disabled={forgotPasswordLoading}
                 />
@@ -624,13 +624,13 @@ export default function LandingPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Official TUT Email</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Official Email/TUT Email</label>
                   <input
                     type="email"
                     value={studentData.email}
                     onChange={(e) => setStudentData({ ...studentData, email: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
-                    placeholder="your.email@tut.ac.za"
+                    placeholder="your.email@gmail.com"
                     required
                     disabled={signupLoading}
                   />
