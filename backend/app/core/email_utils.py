@@ -72,7 +72,7 @@ def send_verification_email(student_email: str, student_name: str, verification_
     
     # FIXED: Properly encode the token to handle special characters
     encoded_token = quote(verification_token, safe='')
-    verification_link = f"{FRONTEND_URL}/verify-email?token={encoded_token}"
+    verification_link = f"{FRONTEND_URL}/#/verify-email?token={encoded_token}"
     
     subject = "Verify Your CampusStay Account"
     
@@ -169,7 +169,7 @@ def send_password_reset_email(student_email: str, student_name: str, reset_token
     
     # FIXED: Properly encode the token to handle special characters
     encoded_token = quote(reset_token, safe='')
-    reset_link = f"{FRONTEND_URL}/reset-password?token={encoded_token}"
+    reset_link = f"{FRONTEND_URL}/#/reset-password?token={encoded_token}"
     
     subject = "Reset Your CampusStay Password"
     

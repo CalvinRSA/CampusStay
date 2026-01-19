@@ -2,7 +2,7 @@
 import type { JSX } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  BrowserRouter,
+  HashRouter ,
   Routes,
   Route,
   Navigate,
@@ -118,7 +118,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         {/* ✅ CRITICAL: Public routes MUST come first and be explicit */}
         {/* These routes are accessible without authentication */}
@@ -164,7 +164,7 @@ const App: React.FC = () => {
         {/* Catch-all - Only redirect to home for truly unknown routes */}
         {/*<Route path="*" element={<Navigate to="/" replace />} />*/}
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
