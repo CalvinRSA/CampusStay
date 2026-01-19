@@ -1,38 +1,4 @@
-// Add this to your App.tsx - COMPLETE FIX for index.html in URL
-
-// At the top of your App component, add this useEffect:
-
-useEffect(() => {
-  // Clean up URL if it contains index.html
-  const cleanUrl = () => {
-    const currentPath = window.location.pathname;
-    const currentHash = window.location.hash;
-    
-    if (currentPath.includes('index.html')) {
-      // Replace the URL without index.html
-      const cleanPath = currentPath.replace('/index.html', '');
-      const newUrl = `${window.location.origin}${cleanPath}${currentHash}`;
-      
-      console.log('Cleaning URL from:', window.location.href);
-      console.log('Cleaning URL to:', newUrl);
-      
-      window.history.replaceState(null, '', newUrl);
-    }
-  };
-
-  // Clean on mount
-  cleanUrl();
-
-  // Clean on hash change
-  window.addEventListener('hashchange', cleanUrl);
-  
-  return () => {
-    window.removeEventListener('hashchange', cleanUrl);
-  };
-}, []);
-
-// COMPLETE UPDATED App.tsx WITH FIX:
-
+// src/App.tsx - FIXED VERSION with URL cleanup
 import type { JSX } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -47,6 +13,7 @@ import AdminDashboard from './components/AdminDashboard';
 import StudentsDashboard from './components/StudentsDashboard';
 import VerifyEmail from './components/VerifyEmail';
 import ResetPassword from './components/ResetPassword';
+import RouteTest from './components/RouteTest';
 
 interface User {
   role: 'admin' | 'student';
@@ -65,7 +32,7 @@ const App: React.FC = () => {
     ready: false,
   });
 
-  // ✅ ADDED: Clean up index.html from URL
+  // ✅ ADDED: Clean up index.html from URL automatically
   useEffect(() => {
     const cleanUrl = () => {
       const currentPath = window.location.pathname;
@@ -74,11 +41,15 @@ const App: React.FC = () => {
       if (currentPath.includes('index.html')) {
         const cleanPath = currentPath.replace('/index.html', '');
         const newUrl = `${window.location.origin}${cleanPath}${currentHash}`;
+        console.log('🧹 Cleaning URL:', window.location.href, '→', newUrl);
         window.history.replaceState(null, '', newUrl);
       }
     };
 
+    // Clean on mount
     cleanUrl();
+
+    // Clean whenever hash changes
     window.addEventListener('hashchange', cleanUrl);
     
     return () => {
@@ -112,13 +83,16 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // Initial load
     setAuth(loadAuth());
 
+    // Listen for auth changes (from login/logout)
     const handleAuthChange = () => {
       console.log('Auth change detected');
       setAuth(loadAuth());
     };
 
+    // Listen for storage changes from other tabs
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'access_token' || e.key === 'user') {
         console.log('Storage change detected:', e.key);
@@ -148,6 +122,7 @@ const App: React.FC = () => {
 
   const { user, token } = auth;
 
+  // Protected Route Component
   const ProtectedRoute: React.FC<{
     children: JSX.Element;
     role: 'admin' | 'student';
@@ -159,6 +134,7 @@ const App: React.FC = () => {
     }
 
     if (user.role !== role) {
+      // Redirect to correct dashboard if wrong role
       const correctPath = user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard';
       return <Navigate to={correctPath} replace />;
     }
@@ -169,9 +145,13 @@ const App: React.FC = () => {
   return (
     <HashRouter>
       <Routes>
+        {/* ✅ CRITICAL: Public routes MUST come first and be explicit */}
+        {/* These routes are accessible without authentication */}
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        
+        <Route path="/test" element={<RouteTest />} />
+
+        {/* Protected Student Dashboard */}
         <Route
           path="/student/dashboard"
           element={
@@ -181,6 +161,7 @@ const App: React.FC = () => {
           }
         />
 
+        {/* Protected Admin Dashboard */}
         <Route
           path="/admin/dashboard"
           element={
@@ -190,6 +171,7 @@ const App: React.FC = () => {
           }
         />
 
+        {/* Home route - Smart redirect based on auth status */}
         <Route
           path="/"
           element={
@@ -204,6 +186,7 @@ const App: React.FC = () => {
           }
         />
 
+        {/* Catch-all - Only redirect to home for truly unknown routes */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>
