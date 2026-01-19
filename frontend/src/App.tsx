@@ -1,4 +1,4 @@
-// src/App.tsx - FIXED VERSION with proper public route handling
+// src/App.tsx - FIXED VERSION with proper route handling
 import type { JSX } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -119,34 +119,10 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ========================================
-            PUBLIC ROUTES - MUST COME FIRST!
-            These routes are accessible WITHOUT authentication
-            ======================================== */}
-        
-        {/* Email Verification - COMPLETELY PUBLIC */}
+        {/* ✅ CRITICAL: Public routes MUST come first and be explicit */}
+        {/* These routes are accessible without authentication */}
         <Route path="/verify-email" element={<VerifyEmail />} />
-        
-        {/* Password Reset - COMPLETELY PUBLIC */}
         <Route path="/reset-password" element={<ResetPassword />} />
-        
-        {/* Login/Landing Page */}
-        <Route 
-          path="/login" 
-          element={
-            user && token ? (
-              // If already logged in, redirect to appropriate dashboard
-              <Navigate to={user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard'} replace />
-            ) : (
-              <LandingPage />
-            )
-          } 
-        />
-
-        {/* ========================================
-            PROTECTED ROUTES
-            These routes require authentication
-            ======================================== */}
         
         {/* Protected Student Dashboard */}
         <Route
@@ -168,10 +144,7 @@ const App: React.FC = () => {
           }
         />
 
-        {/* ========================================
-            HOME ROUTE
-            Smart redirect based on auth state
-            ======================================== */}
+        {/* Home route - Smart redirect based on auth status */}
         <Route
           path="/"
           element={
@@ -186,11 +159,8 @@ const App: React.FC = () => {
           }
         />
 
-        {/* ========================================
-            CATCH-ALL (404)
-            This MUST be last - redirects unknown routes
-            ======================================== */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Catch-all - Only redirect to home for truly unknown routes */}
+        {/*<Route path="*" element={<Navigate to="/" replace />} />*/}
       </Routes>
     </BrowserRouter>
   );
