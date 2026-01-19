@@ -1,6 +1,7 @@
 // src/utils/api.ts
-export const API_BASE = 'https://campusstay-backend.onrender.com';
-
+export const API_BASE = import.meta.env.DEV 
+  ? '/api'  // Use proxy in dev
+  : 'https://campusstay-backend.onrender.com';  // Direct in prod
 export async function fetcher(endpoint: string, options: RequestInit = {}) {
   const token = localStorage.getItem('access_token');
   const headers = new Headers(options.headers);

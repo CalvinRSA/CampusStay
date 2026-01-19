@@ -101,6 +101,11 @@ def root():
         "status": "healthy"
     }
 
+# ADD THIS - Handle HEAD requests for health checks
+@app.head("/")
+def root_head():
+    return Response(status_code=200)
+
 @app.get("/health")
 def health():
     return {
@@ -108,6 +113,11 @@ def health():
         "backend_url": os.getenv("BACKEND_URL", "Not configured"),
         "frontend_url": os.getenv("FRONTEND_URL", "Not configured")
     }
+
+# ADD THIS - Handle HEAD requests for health checks
+@app.head("/health")
+def health_head():
+    return Response(status_code=200)
 
 @app.get("/debug/cors")
 def debug_cors():

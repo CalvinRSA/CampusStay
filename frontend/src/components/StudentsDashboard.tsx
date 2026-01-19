@@ -134,19 +134,11 @@ export default function StudentsDashboard() {
   };
 
   const fetchWithAuth = async (input: string, init?: RequestInit) => {
-      // 🔒 FORCE HTTPS - Fix for mixed content error
-      let url = input;
-      if (url.startsWith('http://')) {
-        console.warn('⚠️ Converting HTTP to HTTPS:', url);
-        url = url.replace('http://', 'https://');
-      }
-      
-      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-      if (!(init?.body instanceof FormData)) headers['Content-Type'] = 'application/json';
-      
-      console.log('🔗 Fetching:', url); // Debug log
-      return fetch(url, { ...init, headers });
-    };
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    if (!(init?.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+    
+    return fetch(input, { ...init, headers });
+};
 
   const loadData = async () => {
   setLoading(true);
