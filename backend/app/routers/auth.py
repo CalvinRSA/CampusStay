@@ -74,7 +74,7 @@ def register_student(
         student_number=student_in.student_number,
         campus=student_in.campus,
         hashed_password=hashed,
-        email_verified=True,
+        email_verified=False,
         verification_token=verification_token,
         verification_token_expires=datetime.now(timezone.utc) + timedelta(hours=24)
     )
