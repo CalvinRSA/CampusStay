@@ -1,4 +1,4 @@
-// src/App.tsx - FIXED with reset-password route
+// src/App.tsx - FIXED VERSION with proper public route handling
 import type { JSX } from 'react';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
@@ -12,7 +12,7 @@ import LandingPage from './components/LandingPage';
 import AdminDashboard from './components/AdminDashboard';
 import StudentsDashboard from './components/StudentsDashboard';
 import VerifyEmail from './components/VerifyEmail';
-import ResetPassword from './components/ResetPassword';  // ADD THIS IMPORT
+import ResetPassword from './components/ResetPassword';
 
 interface User {
   role: 'admin' | 'student';
@@ -119,11 +119,35 @@ const App: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes - THESE MUST COME FIRST */}
+        {/* ========================================
+            PUBLIC ROUTES - MUST COME FIRST!
+            These routes are accessible WITHOUT authentication
+            ======================================== */}
+        
+        {/* Email Verification - COMPLETELY PUBLIC */}
         <Route path="/verify-email" element={<VerifyEmail />} />
-        <Route path="/reset-password" element={<ResetPassword />} />  {/* ADD THIS LINE */}
-        <Route path="/login" element={<LandingPage />} />
+        
+        {/* Password Reset - COMPLETELY PUBLIC */}
+        <Route path="/reset-password" element={<ResetPassword />} />
+        
+        {/* Login/Landing Page */}
+        <Route 
+          path="/login" 
+          element={
+            user && token ? (
+              // If already logged in, redirect to appropriate dashboard
+              <Navigate to={user.role === 'admin' ? '/admin/dashboard' : '/student/dashboard'} replace />
+            ) : (
+              <LandingPage />
+            )
+          } 
+        />
 
+        {/* ========================================
+            PROTECTED ROUTES
+            These routes require authentication
+            ======================================== */}
+        
         {/* Protected Student Dashboard */}
         <Route
           path="/student/dashboard"
@@ -144,7 +168,10 @@ const App: React.FC = () => {
           }
         />
 
-        {/* Home - Redirect if logged in, otherwise show landing */}
+        {/* ========================================
+            HOME ROUTE
+            Smart redirect based on auth state
+            ======================================== */}
         <Route
           path="/"
           element={
@@ -159,7 +186,10 @@ const App: React.FC = () => {
           }
         />
 
-        {/* Catch-all - Redirect to home */}
+        {/* ========================================
+            CATCH-ALL (404)
+            This MUST be last - redirects unknown routes
+            ======================================== */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
