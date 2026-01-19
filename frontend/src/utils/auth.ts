@@ -1,4 +1,4 @@
-// src/utils/auth.ts
+// src/utils/auth.ts - FIXED for HashRouter
 import { fetcher } from './api';
 
 export interface LoginData {
@@ -22,25 +22,28 @@ export async function login(data: LoginData) {
     body: new URLSearchParams({ username: data.email, password: data.password }),
   });
 
-  console.log('Login response:', res); // Debug: see what backend returns
+  console.log('Login response:', res);
 
   // Store auth data
   localStorage.setItem('access_token', res.access_token);
   
-  // Make sure we're getting the user info properly
   const userInfo = {
     email: res.email || data.email,
     full_name: res.full_name || data.email.split('@')[0],
-    role: res.role || res.user_role || 'student', // Try multiple fields
+    role: res.role || res.user_role || 'student',
     student_id: res.student_id || null,
   };
   
-  console.log('Storing user info:', userInfo); // Debug: see what we're storing
-  
+  console.log('Storing user info:', userInfo);
   localStorage.setItem('user', JSON.stringify(userInfo));
 
   // Dispatch event to trigger App.tsx rerender
   window.dispatchEvent(new Event('auth-change'));
+
+  // ✅ ADDED: Manually redirect to correct dashboard
+  const redirectPath = userInfo.role === 'admin' ? '/admin/dashboard' : '/student/dashboard';
+  console.log('Redirecting to:', redirectPath);
+  window.location.hash = redirectPath;
 
   return res;
 }
@@ -56,7 +59,8 @@ export function logout() {
   localStorage.removeItem('access_token');
   localStorage.removeItem('user');
   window.dispatchEvent(new Event('auth-change'));
-  window.location.replace('/');
+  // ✅ FIXED: Use hash navigation instead of replace
+  window.location.hash = '/';
 }
 
 export function getCurrentUser() {
