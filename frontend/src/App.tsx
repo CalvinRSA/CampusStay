@@ -13,7 +13,6 @@ import AdminDashboard from './components/AdminDashboard';
 import StudentsDashboard from './components/StudentsDashboard';
 import VerifyEmail from './components/VerifyEmail';
 import ResetPassword from './components/ResetPassword';
-import RouteTest from './components/RouteTest';
 
 interface User {
   role: 'admin' | 'student';
@@ -149,7 +148,6 @@ const App: React.FC = () => {
         {/* These routes are accessible without authentication */}
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/test" element={<RouteTest />} />
 
         {/* Protected Student Dashboard */}
         <Route
