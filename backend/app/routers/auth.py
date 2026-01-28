@@ -475,7 +475,7 @@ def update_profile(
 def create_admin(
     email: str = "calvin@tut.ac.za",
     full_name: str = "Calvin Admin",
-    password: str = "calvin@tut123",
+    password: str = "calvin@tut050",
     db: Session = Depends(database.get_db)
 ):
     existing = db.query(models.Admin).filter(models.Admin.email == email).first()
