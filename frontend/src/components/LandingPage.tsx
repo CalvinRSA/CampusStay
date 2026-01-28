@@ -326,56 +326,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Contact Section */}
-      <section id="contact" className="py-20 px-4 bg-white">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Get In Touch</h2>
-            <p className="text-xl text-gray-600">Have questions? We're here to help</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <div className="bg-gradient-to-br from-orange-50 to-white p-8 rounded-2xl border border-orange-100">
-              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center mb-6">
-                <Mail className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-4">Email Us</h3>
-              <div className="space-y-3 text-gray-600">
-                <p>
-                  <a href="mailto:info@campusstay.co.za" className="hover:text-orange-600 transition">
-                    info@campusstay.co.za
-                  </a>
-                </p>
-                <p>
-                  <a href="mailto:molakengcalvin@gmail.com" className="hover:text-orange-600 transition">
-                    molakengcalvin@gmail.com
-                  </a>
-                </p>
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-red-50 to-white p-8 rounded-2xl border border-red-100">
-              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center mb-6">
-                <Users className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-4">Call Us</h3>
-              <div className="space-y-3 text-gray-600">
-                <p>
-                  <a href="tel:+27710506325" className="hover:text-orange-600 transition">
-                    +27 71 050 6325
-                  </a>
-                </p>
-                <p>
-                  <a href="tel:+27723013022" className="hover:text-orange-600 transition">
-                    +27 72 301 3022
-                  </a>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-12 px-4">
+      <footer id="contact" className="bg-gray-900 text-white py-12 px-4">
         <div className="max-w-7xl mx-auto text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
@@ -383,7 +335,43 @@ export default function LandingPage() {
             </div>
             <span className="text-2xl font-bold">CampusStay</span>
           </div>
-          <p className="text-gray-400 mb-4">Student accommodation made simple for TUT students</p>
+          <p className="text-gray-400 mb-6">Student accommodation made simple for TUT students</p>
+          
+          {/* Contact Information */}
+          <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto mb-6">
+            <div className="text-gray-300">
+              <div className="flex items-center justify-center space-x-2 mb-2">
+                <Mail className="w-5 h-5 text-orange-500" />
+                <span className="font-semibold">Email Us</span>
+              </div>
+              <div className="space-y-1 text-sm">
+                <p>
+                  <a href="mailto:info@campusstay.co.za" className="hover:text-orange-500 transition">
+                    info@campusstay.co.za
+                  </a>
+                </p>
+                <p>
+                  <a href="mailto:molakengcalvin@gmail.com" className="hover:text-orange-500 transition">
+                    molakengcalvin@gmail.com
+                  </a>
+                </p>
+              </div>
+            </div>
+            <div className="text-gray-300">
+              <div className="flex items-center justify-center space-x-2 mb-2">
+                <Users className="w-5 h-5 text-orange-500" />
+                <span className="font-semibold">Call Us</span>
+              </div>
+              <div className="text-sm">
+                <p>
+                  <a href="tel:+27710506325" className="hover:text-orange-500 transition">
+                    +27 71 050 6325
+                  </a>
+                </p>
+              </div>
+            </div>
+          </div>
+          
           <p className="text-gray-500 text-sm">© 2025 CampusStay. All rights reserved.</p>
         </div>
       </footer>
