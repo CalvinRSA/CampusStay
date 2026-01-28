@@ -1,4 +1,3 @@
-
 import { useState, useEffect, type FormEvent } from 'react';
 import {
   Home,
@@ -27,6 +26,7 @@ import {
   File,
   AlertCircle,
   Loader,
+  Maximize2,
 } from 'lucide-react';
 
 interface Property {
@@ -99,6 +99,7 @@ export default function StudentsDashboard() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState(false);
 
   const [filters, setFilters] = useState({
     searchQuery: '',
@@ -1265,16 +1266,25 @@ export default function StudentsDashboard() {
 
             <div className="p-8">
               {selectedProperty.image_urls && selectedProperty.image_urls.length > 0 ? (
-                <div className="relative mb-8 rounded-xl overflow-hidden shadow-lg">
+                <div className="relative mb-8 rounded-xl overflow-hidden shadow-lg group">
                   <img
                     src={selectedProperty.image_urls[currentImageIndex]}
                     alt={selectedProperty.title}
-                    className="w-full h-96 object-cover"
+                    className="w-full h-96 object-cover cursor-pointer"
+                    onClick={() => setFullscreenImage(true)}
                     onError={(e) => {
                       e.currentTarget.src =
                         'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23f97316" width="100" height="100"/%3E%3Ctext x="50" y="50" font-size="40" fill="white" text-anchor="middle" dominant-baseline="middle"%3E🏠%3C/text%3E%3C/svg%3E';
                     }}
                   />
+                  {/* Fullscreen Icon Overlay */}
+                  <button
+                    onClick={() => setFullscreenImage(true)}
+                    className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white p-3 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    title="View fullscreen"
+                  >
+                    <Maximize2 className="w-5 h-5" />
+                  </button>
                   {selectedProperty.image_urls.length > 1 && (
                     <>
                       <button
@@ -1456,6 +1466,61 @@ export default function StudentsDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Fullscreen Image Viewer */}
+      {fullscreenImage && selectedProperty && selectedProperty.image_urls.length > 0 && (
+        <div className="fixed inset-0 bg-black z-[60] flex items-center justify-center">
+          {/* Close Button */}
+          <button
+            onClick={() => setFullscreenImage(false)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 bg-black/50 hover:bg-black/70 p-3 rounded-full transition z-10"
+          >
+            <X className="w-8 h-8" />
+          </button>
+
+          {/* Image */}
+          <img
+            src={selectedProperty.image_urls[currentImageIndex]}
+            alt={selectedProperty.title}
+            className="max-w-[95vw] max-h-[95vh] object-contain"
+            onError={(e) => {
+              e.currentTarget.src =
+                'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23f97316" width="100" height="100"/%3E%3Ctext x="50" y="50" font-size="40" fill="white" text-anchor="middle" dominant-baseline="middle"%3E🏠%3C/text%3E%3C/svg%3E';
+            }}
+          />
+
+          {/* Navigation Controls (if multiple images) */}
+          {selectedProperty.image_urls.length > 1 && (
+            <>
+              <button
+                onClick={() =>
+                  setCurrentImageIndex((i) =>
+                    i === 0 ? selectedProperty.image_urls.length - 1 : i - 1
+                  )
+                }
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 bg-black/50 hover:bg-black/70 p-4 rounded-full transition"
+              >
+                <ChevronLeft className="w-8 h-8" />
+              </button>
+              <button
+                onClick={() =>
+                  setCurrentImageIndex((i) =>
+                    i === selectedProperty.image_urls.length - 1 ? 0 : i + 1
+                  )
+                }
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 bg-black/50 hover:bg-black/70 p-4 rounded-full transition"
+              >
+                <ChevronRight className="w-8 h-8" />
+              </button>
+
+              {/* Image Counter */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm font-medium">
+                {currentImageIndex + 1} / {selectedProperty.image_urls.length}
+              </div>
+            </>
+          )}
         </div>
       )}
 
