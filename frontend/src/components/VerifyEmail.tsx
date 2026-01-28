@@ -1,7 +1,7 @@
-// src/components/VerifyEmail.tsx - DEFINITIVE WORKING VERSION
+// src/components/VerifyEmail.tsx
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Loader2, Home, AlertTriangle, LogIn } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Home, LogIn } from 'lucide-react';
 
 const API_BASE = 'https://campusstay-backend.onrender.com';
 
@@ -12,50 +12,26 @@ export default function VerifyEmail() {
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
-  const [details, setDetails] = useState<string[]>([]);
   const [countdown, setCountdown] = useState(5);
   const [canRedirect, setCanRedirect] = useState(false);
 
   // Main verification effect
   useEffect(() => {
-    const logStep = (step: string) => {
-      console.log(`[VERIFY] ${step}`);
-      setDetails(prev => [...prev, step]);
-    };
-
-    // Prevent double execution in StrictMode
     let executed = false;
 
     const verifyEmail = async () => {
-      if (executed) {
-        logStep('⚠️ Skipping duplicate execution (StrictMode)');
-        return;
-      }
+      if (executed) return;
       executed = true;
 
-      logStep('=== EMAIL VERIFICATION STARTED ===');
-      logStep(`Token present: ${token ? 'YES' : 'NO'}`);
-      logStep(`Current URL: ${window.location.href}`);
-      
-      if (token) {
-        logStep(`Token length: ${token.length}`);
-        logStep(`Token preview: ${token.substring(0, 50)}...`);
-      }
-
       if (!token) {
-        logStep('❌ ERROR: No token in URL');
         setStatus('error');
         setMessage('Invalid verification link. No token provided.');
         return;
       }
 
       try {
-        logStep('📡 Preparing verification request');
-        
         const url = `${API_BASE}/auth/verify-email?token=${encodeURIComponent(token)}`;
-        logStep(`Request URL: ${url}`);
-
-        logStep('🚀 Sending request to backend...');
+        
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -64,27 +40,16 @@ export default function VerifyEmail() {
           },
         });
 
-        logStep(`✅ Response received: ${response.status}`);
-        logStep(`Response OK: ${response.ok}`);
-
         const responseText = await response.text();
-        logStep(`Response length: ${responseText.length} chars`);
 
         let data;
         try {
           data = JSON.parse(responseText);
-          logStep('✅ Response parsed successfully');
-          logStep(`Message: ${data.message}`);
-          logStep(`Status: ${data.status}`);
         } catch (e) {
-          logStep('❌ ERROR: Failed to parse JSON response');
-          logStep(`Raw response: ${responseText.substring(0, 200)}`);
           throw new Error('Server returned invalid response');
         }
 
         if (!response.ok) {
-          logStep(`❌ ERROR: HTTP ${response.status}`);
-          logStep(`Error detail: ${data.detail || 'No detail provided'}`);
           throw new Error(data.detail || data.message || `Server error (${response.status})`);
         }
 
@@ -96,42 +61,29 @@ export default function VerifyEmail() {
           data.status === 'already_verified';
 
         if (isSuccess) {
-          logStep('🎉 SUCCESS: Email verified!');
           setStatus('success');
           setMessage(messageText || 'Email verified successfully!');
-          
-          // Enable redirect only after successful verification
-          logStep('✅ Enabling redirect capability...');
           setCanRedirect(true);
-
         } else {
-          logStep('❌ ERROR: Unexpected response format');
           throw new Error('Verification failed with unexpected response');
         }
 
       } catch (error: any) {
-        logStep(`❌ VERIFICATION FAILED: ${error.message}`);
-        console.error('[VERIFY] Full error:', error);
         setStatus('error');
         setMessage(error.message || 'Verification failed');
       }
     };
 
     verifyEmail();
-  }, [token]); // Only re-run if token changes
+  }, [token]);
 
-  // Separate countdown effect
+  // Countdown effect
   useEffect(() => {
     if (canRedirect && status === 'success') {
-      console.log('[VERIFY] ⏰ Starting countdown for redirect...');
-      
       const countdownInterval = setInterval(() => {
         setCountdown(prev => {
-          console.log(`[VERIFY] ⏱️ Countdown: ${prev}`);
-          
           if (prev <= 1) {
             clearInterval(countdownInterval);
-            console.log('[VERIFY] 🚀 Redirecting to login...');
             navigate('/', { replace: true });
             return 0;
           }
@@ -139,15 +91,11 @@ export default function VerifyEmail() {
         });
       }, 1000);
 
-      return () => {
-        console.log('[VERIFY] 🧹 Cleaning up countdown interval');
-        clearInterval(countdownInterval);
-      };
+      return () => clearInterval(countdownInterval);
     }
   }, [canRedirect, status, navigate]);
 
   const handleManualRedirect = () => {
-    console.log('[VERIFY] 👆 Manual redirect triggered');
     navigate('/', { replace: true });
   };
 
@@ -173,7 +121,6 @@ export default function VerifyEmail() {
               <Loader2 className="w-16 h-16 animate-spin text-orange-600 mx-auto mb-6" />
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Verifying Your Email...</h2>
               <p className="text-gray-600">Please wait while we verify your account.</p>
-              <p className="text-xs text-gray-400 mt-4">Check browser console (F12) for detailed logs</p>
             </>
           )}
           
@@ -248,33 +195,6 @@ export default function VerifyEmail() {
             </>
           )}
         </div>
-
-        {/* Debug Info (Collapsible) */}
-        <details className="bg-gray-100 rounded-lg p-4 text-xs">
-          <summary className="cursor-pointer font-medium text-gray-700 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4" />
-            Technical Details (for debugging)
-          </summary>
-          <div className="mt-4 space-y-1 font-mono text-gray-600 max-h-64 overflow-y-auto">
-            {details.map((detail, idx) => (
-              <div key={idx} className="border-b border-gray-200 py-1">
-                {detail}
-              </div>
-            ))}
-            <div className="border-b border-gray-200 py-1 mt-4 font-bold">
-              Environment Info:
-            </div>
-            <div className="border-b border-gray-200 py-1">
-              Browser: {navigator.userAgent}
-            </div>
-            <div className="border-b border-gray-200 py-1">
-              Current URL: {window.location.href}
-            </div>
-            <div className="border-b border-gray-200 py-1">
-              API Base: {API_BASE}
-            </div>
-          </div>
-        </details>
 
         {/* Footer */}
         <p className="text-center text-gray-500 text-sm mt-8">

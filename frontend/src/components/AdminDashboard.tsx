@@ -87,25 +87,10 @@ const CAMPUSES = [
 ];
 
 export default function AdminDashboard() {
-  const token = localStorage.getItem('access_token');
-  const userJson = localStorage.getItem('user');
-  const user = userJson ? JSON.parse(userJson) : null;
-
-  if (!token || !user || user.role !== 'admin') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="text-center">
-          <Shield className="w-16 h-16 text-orange-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Restricted</h2>
-          <p className="text-gray-600 mb-6">This page is for administrators only.</p>
-          <a href="/" className="inline-flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700 transition">
-            <Home className="w-5 h-5" /> Back to Home
-          </a>
-        </div>
-      </div>
-    );
-  }
-
+  // ✅ ALL HOOKS FIRST - Before any returns!
+  const [authReady, setAuthReady] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -147,7 +132,7 @@ export default function AdminDashboard() {
     removedImages: [] as string[],
   });
 
-const API = 'https://campusstay-backend.onrender.com/admin';
+  const API = 'https://campusstay-backend.onrender.com/admin';
 
   const showNotification = (type: 'success' | 'error' | 'warning' | 'info', message: string) => {
     const id = Date.now();
@@ -167,7 +152,7 @@ const API = 'https://campusstay-backend.onrender.com/admin';
     return fetch(input, { ...init, headers });
   };
 
-const loadData = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
       console.log('Loading admin data...'); // Debug
@@ -205,7 +190,58 @@ const loadData = async () => {
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  // Check auth on mount
+  useEffect(() => {
+    const checkAuth = () => {
+      const storedToken = localStorage.getItem('access_token');
+      const userJson = localStorage.getItem('user');
+      const storedUser = userJson ? JSON.parse(userJson) : null;
+      
+      console.log('AdminDashboard auth check:', { token: !!storedToken, user: storedUser });
+      
+      setToken(storedToken);
+      setUser(storedUser);
+      setAuthReady(true);
+    };
+
+    checkAuth();
+    window.addEventListener('auth-change', checkAuth);
+    return () => window.removeEventListener('auth-change', checkAuth);
+  }, []);
+
+  // Load data when authenticated
+  useEffect(() => {
+    if (authReady && token && user?.role === 'admin') {
+      loadData();
+    }
+  }, [authReady, token, user]);
+
+  // ✅ NOW conditional returns are AFTER all hooks
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!token || !user || user.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="text-center">
+          <Shield className="w-16 h-16 text-orange-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Restricted</h2>
+          <p className="text-gray-600 mb-6">This page is for administrators only.</p>
+          <a href="/" className="inline-flex items-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-orange-700 transition">
+            <Home className="w-5 h-5" /> Back to Home
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   const loadApplicationDetails = async (appId: number) => {
     setLoadingDocs(true);

@@ -1,4 +1,4 @@
-// src/components/ResetPassword.tsx - DEFINITIVE WORKING VERSION
+// src/components/ResetPassword.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, Lock, CheckCircle, AlertCircle, LogIn, Loader2 } from 'lucide-react';
@@ -19,30 +19,18 @@ export default function ResetPassword() {
   const [canRedirect, setCanRedirect] = useState(false);
 
   useEffect(() => {
-    console.log('[RESET] Component mounted');
-    console.log('[RESET] Token present:', !!token);
-    console.log('[RESET] Current URL:', window.location.href);
-    
     if (!token) {
       setError('Invalid or missing reset token');
-      console.log('[RESET] ❌ No token in URL');
-    } else {
-      console.log('[RESET] ✅ Token found:', token.substring(0, 50) + '...');
     }
   }, [token]);
 
-  // Separate countdown effect that only runs after successful reset
+  // Countdown effect
   useEffect(() => {
     if (canRedirect && success) {
-      console.log('[RESET] ⏰ Starting countdown for redirect...');
-      
       const countdownInterval = setInterval(() => {
         setCountdown(prev => {
-          console.log(`[RESET] ⏱️ Countdown: ${prev}`);
-          
           if (prev <= 1) {
             clearInterval(countdownInterval);
-            console.log('[RESET] 🚀 Redirecting to login...');
             navigate('/', { replace: true });
             return 0;
           }
@@ -50,10 +38,7 @@ export default function ResetPassword() {
         });
       }, 1000);
 
-      return () => {
-        console.log('[RESET] 🧹 Cleaning up countdown interval');
-        clearInterval(countdownInterval);
-      };
+      return () => clearInterval(countdownInterval);
     }
   }, [canRedirect, success, navigate]);
 
@@ -61,33 +46,26 @@ export default function ResetPassword() {
     e.preventDefault();
     setError(null);
 
-    console.log('[RESET] 📝 Form submitted');
-
     // Validation
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
-      console.log('[RESET] ❌ Password too short');
       return;
     }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match');
-      console.log('[RESET] ❌ Passwords do not match');
       return;
     }
 
     if (!token) {
       setError('Invalid reset token');
-      console.log('[RESET] ❌ No token available');
       return;
     }
 
     setLoading(true);
-    console.log('[RESET] 🚀 Starting password reset...');
 
     try {
       const url = `${API_BASE}/auth/reset-password`;
-      console.log('[RESET] 📡 Sending request to:', url);
       
       const response = await fetch(url, {
         method: 'POST',
@@ -101,26 +79,16 @@ export default function ResetPassword() {
         }),
       });
 
-      console.log(`[RESET] ✅ Response received: ${response.status}`);
-
       if (!response.ok) {
         const errorData = await response.json();
-        console.log('[RESET] ❌ Error response:', errorData);
         throw new Error(errorData.detail || 'Failed to reset password');
       }
 
-      const data = await response.json();
-      console.log('[RESET] ✅ Success response:', data);
-      console.log('[RESET] 🎉 Password reset successful!');
-
+      await response.json();
       setSuccess(true);
-      
-      // Enable redirect only after successful reset
-      console.log('[RESET] ✅ Enabling redirect capability...');
       setCanRedirect(true);
 
     } catch (err: any) {
-      console.error('[RESET] ❌ Password reset failed:', err);
       setError(err.message || 'Failed to reset password. The link may have expired.');
     } finally {
       setLoading(false);
@@ -128,7 +96,6 @@ export default function ResetPassword() {
   };
 
   const handleManualRedirect = () => {
-    console.log('[RESET] 👆 Manual redirect triggered');
     navigate('/', { replace: true });
   };
 
@@ -258,10 +225,6 @@ export default function ResetPassword() {
                 <LogIn className="w-4 h-4" /> Back to Login
               </button>
             </div>
-
-            <p className="text-xs text-gray-400 text-center mt-4">
-              Open browser console (F12) for detailed logs
-            </p>
           </div>
         )}
 
